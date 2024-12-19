@@ -1,4 +1,4 @@
-import { Schema, model, Document, models } from 'mongoose';
+import { Schema, model, Document } from 'mongoose';
 
 export interface IGroupCoin extends Document {
   name: string;

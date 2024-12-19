@@ -1,5 +1,5 @@
 import { sendErrorResponse, sendSuccessResponse } from "../utils/response";
-import { GroupCoin } from "../../src/models/groupCoin";
+import { GroupCoin } from "../models/groupCoin";
 import { Request, Response } from "express";
 import logger from "../utils/logger";
 const indexController = () => {
