@@ -82,20 +82,24 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
         rs1?.[rs1.length - 1],
         rs2?.[rs2.length - 1],
       ];
-      const average = allResponses?.reduce(
-        (acc: { [key: string]: number }, curr: { [key: string]: number }) => {
-          Object.keys(curr).forEach((key: string) => {
-            if (key === "time") {
-              acc[key] = acc[key] || curr[key];
-            }
-            acc[key] = (acc[key] || 0) + curr[key] / 3;
-          });
-          return acc;
-        },
-        {}
-      );
-      console.log({ average, allResponses });
-      socket.emit("index2", [average]);
+      if (allResponses?.length) {
+        const average = allResponses?.reduce(
+          (acc: { [key: string]: number }, curr: { [key: string]: number }) => {
+            Object.keys(curr).forEach((key: string) => {
+              if (key === "time") {
+                acc[key] = acc[key] || curr[key];
+              }
+              acc[key] = (acc[key] || 0) + curr[key] / 3;
+            });
+            return acc;
+          },
+          {}
+        );
+        console.log({ average, allResponses });
+        socket.emit("index2", [average]);
+      } else {
+        socket.emit("index2", []);
+      }
     }, 3000);
 
     // Clear the interval on disconnect
