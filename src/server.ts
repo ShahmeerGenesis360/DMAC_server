@@ -6,6 +6,7 @@ import logger from "./utils/logger";
 import { initializeSocket } from "./socket";
 import { config } from "./config";
 import Mongo from "./config/database";
+import router from "./routes";
 const app = express();
 const server = http.createServer(app);
 const PORT = config.port;
@@ -21,6 +22,7 @@ const corsOptions = {
   app.get("/", (req, res) => {
     res.send("SERVER IS RUNNING ");
   });
+  app.use("/api/v1", router);
   // Initialize sockets
   initializeSocket(server);
   server.listen(PORT, () => {
