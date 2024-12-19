@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
+import { priceSocketHandler } from "./price";
 
 export const initializeSocket = (server: HTTPServer): void => {
   const io = new Server(server, {
@@ -13,6 +14,7 @@ export const initializeSocket = (server: HTTPServer): void => {
   io.on("connection", (socket) => {
     console.log(`A user connected: ${socket.id}`);
 
+    priceSocketHandler(io, socket);
     // Handle user disconnect
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);
