@@ -90,7 +90,7 @@ const indexController = () => {
                 if (data.length === 0) return 0;
                 return data[data.length - 1].c; // Close price of the last data point
               };
-  
+
               const coinPrice = getLastClosePrice(data1h);
 
               return {
@@ -98,7 +98,7 @@ const indexController = () => {
                 percentage1h: percentage1h.percentage,
                 percentage24h: percentage24h.percentage,
                 percentage7d: percentage7d.percentage,
-                coinPrice
+                coinPrice,
               };
             })
           );
@@ -114,10 +114,9 @@ const indexController = () => {
             coinData.map((data) => data.percentage7d)
           );
 
-          const price = coinData.reduce(
-            (sum, data) => sum + data.coinPrice,
-            0
-          ) / coinData.length;
+          const price =
+            coinData.reduce((sum, data) => sum + data.coinPrice, 0) /
+            coinData.length;
 
           return {
             _id: index._id,
@@ -127,7 +126,7 @@ const indexController = () => {
             a1H: averagePercentage1h,
             a1D: averagePercentage24h,
             a1W: averagePercentage7d,
-            price
+            price,
           };
         })
       );
@@ -147,9 +146,47 @@ const indexController = () => {
       });
     }
   };
+
+  const getIndexById = async (req: Request, res: Response) => {
+    logger.info(`indexController get index by id`);
+    try {
+      const { id } = req.params;
+      if (!id)
+        return sendErrorResponse({
+          req,
+          res,
+          error: "id is required",
+          statusCode: 404,
+        });
+      const index = await GroupCoin.findById(id);
+      if (!index) {
+        sendErrorResponse({
+          req,
+          res,
+          error: "Index not found",
+          statusCode: 404,
+        });
+        return;
+      }
+      sendSuccessResponse({
+        res,
+        data: index,
+        message: "Fetched index successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while fetching index by id ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
   return {
     getAllIndex,
     createIndex,
+    getIndexById,
   };
 };
 
