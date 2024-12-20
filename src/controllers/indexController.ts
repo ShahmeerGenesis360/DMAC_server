@@ -3,6 +3,11 @@ import { GroupCoin } from "../models/groupCoin";
 import { Request, Response } from "express";
 import logger from "../utils/logger";
 import indexService from "../service/indexService";
+import {
+  calculateAveragePercentage,
+  calculatePercentage,
+  getChartData,
+} from "../socket/price/helper";
 const indexController = () => {
   const groupIndexService = indexService();
   const createIndex = async (req: Request, res: Response) => {
@@ -48,9 +53,88 @@ const indexController = () => {
       //       }
       //     }
       //   }
+      const allIndexData = await Promise.all(
+        allIndexs.map(async (index) => {
+          const coinData = await Promise.all(
+            index.coins.map(async (coin) => {
+              // Fetch chart data for different intervals (1h, 24h, 7d)
+              const [data1h, data24h, data7d] = await Promise.all([
+                getChartData(coin.address, "1H", 60),
+                getChartData(coin.address, "1D", 1460),
+                getChartData(coin.address, "1D", 10080),
+              ]);
+
+              console.log(`Data for coin ${coin}:`, {
+                data1h,
+                data24h,
+                data7d,
+              });
+
+              // Calculate percentage change for each time frame (1 hour, 24 hours, and 7 days)
+              const calculateForTimeFrame = (data: any[]) => {
+                if (data.length === 0) return { o: 0, c: 0, percentage: 0 };
+                const { o, c } = data[data.length - 1]; // Get the last data point for each timeframe
+                return {
+                  o,
+                  c,
+                  percentage: calculatePercentage(o, c),
+                };
+              };
+
+              // Get the percentage change for each timeframe
+              const percentage1h = calculateForTimeFrame(data1h);
+              const percentage24h = calculateForTimeFrame(data24h);
+              const percentage7d = calculateForTimeFrame(data7d);
+
+              const getLastClosePrice = (data: any[]) => {
+                if (data.length === 0) return 0;
+                return data[data.length - 1].c; // Close price of the last data point
+              };
+  
+              const coinPrice = getLastClosePrice(data1h);
+
+              return {
+                coinAddress: coin.address,
+                percentage1h: percentage1h.percentage,
+                percentage24h: percentage24h.percentage,
+                percentage7d: percentage7d.percentage,
+                coinPrice
+              };
+            })
+          );
+
+          // Calculate the average percentage for each time frame (1h, 24h, 7d) across all coins in the index
+          const averagePercentage1h = calculateAveragePercentage(
+            coinData.map((data) => data.percentage1h)
+          );
+          const averagePercentage24h = calculateAveragePercentage(
+            coinData.map((data) => data.percentage24h)
+          );
+          const averagePercentage7d = calculateAveragePercentage(
+            coinData.map((data) => data.percentage7d)
+          );
+
+          const price = coinData.reduce(
+            (sum, data) => sum + data.coinPrice,
+            0
+          ) / coinData.length;
+
+          return {
+            _id: index._id,
+            name: index.name,
+            coins: index.coins,
+            visitCount: index.visitCount,
+            a1H: averagePercentage1h,
+            a1D: averagePercentage24h,
+            a1W: averagePercentage7d,
+            price
+          };
+        })
+      );
+
       sendSuccessResponse({
         res,
-        data: allIndexs?.length ? allIndexs : [],
+        data: allIndexs?.length ? allIndexData : [],
         message: "Fetched all indexs successfully",
       });
     } catch (error) {
