@@ -1,5 +1,8 @@
-export interface CurrencyResponse {
-  data: {
-    [key: string]: number;
+export interface PaginatedResponse<T> {
+  meta: {
+    totalRecords: number;
+    totalPages: number;
+    currentPage: number;
   };
+  data: T[];
 }
