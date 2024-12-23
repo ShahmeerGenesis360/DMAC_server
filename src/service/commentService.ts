@@ -1,24 +1,24 @@
 import { PaginatedResponse } from "../types/index";
-import { Chat, IChat } from "../models/chat";
+import { Comment, IComment } from "../models/comment";
 
 const ChatService = () => {
-  const getChatById = async (id: string): Promise<IChat | null> => {
-    return Chat.findById(id);
+  const getChatById = async (id: string): Promise<IComment | null> => {
+    return Comment.findById(id);
   };
 
   const getChatByIndexId = async (
     index: string,
     page: number,
     pageSize: number
-  ): Promise<PaginatedResponse<IChat>> => {
+  ): Promise<PaginatedResponse<IComment>> => {
     // Get the total number of records
-    const totalRecords = await Chat.countDocuments({ index });
+    const totalRecords = await Comment.countDocuments({ index });
 
     // Calculate total pages
     const totalPages = Math.ceil(totalRecords / pageSize);
 
     // Fetch the paginated data
-    const data = await Chat.find({ index })
+    const data = await Comment.find({ index })
       .sort({ createdAt: -1 })
       .skip(page * pageSize)
       .limit(pageSize);
@@ -37,12 +37,14 @@ const ChatService = () => {
   const createChatbyIndexId = async (
     message: string,
     userId: string,
-    indexId: string
-  ): Promise<IChat> => {
-    return Chat.create({
+    indexId: string,
+    isBullish: boolean
+  ): Promise<IComment> => {
+    return Comment.create({
       message,
       userId,
       indexId,
+      isBullish,
     });
   };
   return {

@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types, models } from "mongoose";
 
 export interface IReaction extends Document {
-  chatId: Types.ObjectId;
+  commentId: Types.ObjectId;
   indexId: Types.ObjectId;
   userId: Types.ObjectId;
   reaction: "LIKE" | "DISLIKE" | "NONE";
@@ -9,7 +9,7 @@ export interface IReaction extends Document {
 
 const reactionSchema = new Schema<IReaction>(
   {
-    chatId: { type: Schema.Types.ObjectId, ref: "Chat", required: true },
+    commentId: { type: Schema.Types.ObjectId, ref: "Comment", required: true },
     indexId: { type: Schema.Types.ObjectId, ref: "GroupCoin", required: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     reaction: {
