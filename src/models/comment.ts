@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types, models } from 'mongoose';
 
-export interface IChat extends Document {
+export interface IComment extends Document {
   username: string;
   message: string;
   isBullish: boolean;
@@ -8,7 +8,7 @@ export interface IChat extends Document {
   userId: Types.ObjectId;
 }
 
-const chatSchema = new Schema<IChat>(
+const commentSchema = new Schema<IComment>(
   {
     username: { type: String, required: true },
     message: { type: String, required: true },
@@ -19,4 +19,4 @@ const chatSchema = new Schema<IChat>(
   { timestamps: true }
 );
 
-export const Chat = model<IChat>("Chat", chatSchema);
+export const Comment = model<IComment>("Comment", commentSchema);
