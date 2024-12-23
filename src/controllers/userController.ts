@@ -104,9 +104,21 @@ const userController = () => {
     }
   };
 
+  const getUserbyToken = async (req: CustomRequest, res: Response) => {
+    const { user } = req;
+    console.log("user", user.id);
+    const existingUser = await User.findById(user.id);
+    sendSuccessResponse({
+      res,
+      data: { user: existingUser },
+      message: "User fetched successfully",
+    });
+  };
+
   return {
     getOrCreateUser,
     updateUser,
+    getUserbyToken,
   };
 };
 

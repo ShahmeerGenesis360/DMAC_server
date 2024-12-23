@@ -6,5 +6,6 @@ const userRouter = Router();
 
 userRouter.post("/", user.getOrCreateUser);
 userRouter.patch("/", decodeTokenFromRequest, user.updateUser);
+userRouter.get("/", decodeTokenFromRequest, user.getUserbyToken);
 
 export default userRouter;
