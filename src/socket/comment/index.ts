@@ -33,6 +33,7 @@ const chatSocketHandler = (io: Server, socket: Socket): void => {
         indexId,
         isBullish
       );
+      //
       console.log({ newChat });
       if (user && newChat) {
         const obj = {
