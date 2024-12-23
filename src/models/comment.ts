@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types, models } from 'mongoose';
 
 export interface IComment extends Document {
-  username: string;
+  // username: string;
   message: string;
   isBullish: boolean;
   indexId: Types.ObjectId;
@@ -10,7 +10,6 @@ export interface IComment extends Document {
 
 const commentSchema = new Schema<IComment>(
   {
-    username: { type: String, required: true },
     message: { type: String, required: true },
     isBullish: { type: Boolean, required: true },
     indexId: { type: Schema.Types.ObjectId, ref: 'GroupCoin', required: true },
