@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { priceSocketHandler } from "./price";
+import { chatSocketHandler } from "./comment";
 
 export const initializeSocket = (server: HTTPServer): void => {
   const io = new Server(server, {
@@ -15,6 +16,7 @@ export const initializeSocket = (server: HTTPServer): void => {
     console.log(`A user connected: ${socket.id}`);
 
     priceSocketHandler(io, socket);
+    chatSocketHandler(io, socket);
     // Handle user disconnect
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);

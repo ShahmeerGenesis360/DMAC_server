@@ -58,7 +58,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
         }
       } catch (err) {
         console.error("Error fetching or emitting data:", err);
-        socket.emit(`index2:${id}`, []);
+        // socket.emit(`index2:${id}`, []);
       }
     };
 
