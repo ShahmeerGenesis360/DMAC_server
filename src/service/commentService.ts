@@ -1,7 +1,7 @@
 import { PaginatedResponse } from "../types/index";
 import { Comment, IComment } from "../models/comment";
 
-const ChatService = () => {
+const CommentService = () => {
   const getChatById = async (id: string): Promise<IComment | null> => {
     return Comment.findById(id);
   };
@@ -54,4 +54,4 @@ const ChatService = () => {
   };
 };
 
-export default ChatService;
+export default CommentService;

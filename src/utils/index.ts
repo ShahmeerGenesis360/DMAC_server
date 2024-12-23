@@ -12,7 +12,7 @@ export const createToken = async (
       throw new Error("User object is invalid or missing required fields.");
     }
 
-    const token = await jwt.sign({ id: user._id, ...user }, SECRET_KEY);
+    const token = await jwt.sign({ id: user._id }, SECRET_KEY);
     return token;
   } catch (error) {
     console.error("Error creating token:", error);
