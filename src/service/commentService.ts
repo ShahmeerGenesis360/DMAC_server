@@ -24,6 +24,7 @@ const CommentService = () => {
       .sort({ createdAt: -1 })
       .skip((page-1) * pageSize)
       .limit(pageSize)
+      .populate("userId", "_id username name ")
       .exec();
     // Return the response with meta and data
     return {
