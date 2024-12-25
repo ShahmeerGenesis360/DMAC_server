@@ -36,8 +36,8 @@ const chatSocketHandler = (io: Server, socket: Socket): void => {
       console.log({ newChat });
       if (user && newChat) {
         const obj = {
-          comment: newChat,
-          user,
+          comment: {...newChat.toObject(), userId: user},
+          // user,
         };
         // send chat to all listener of the index
         io.to(indexId).emit("comment", obj);
