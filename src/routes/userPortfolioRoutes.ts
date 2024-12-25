@@ -11,4 +11,10 @@ portfolioRouter.post(
   portfolioController.addPortfolio
 );
 
+portfolioRouter.get(
+  "/",
+  decodeTokenFromRequest,
+  portfolioController.getPortfolioPrice
+);
+
 export default portfolioRouter;
