@@ -7,6 +7,7 @@ import { initializeSocket } from "./socket";
 import { config } from "./config";
 import Mongo from "./config/database";
 import router from "./routes";
+import "./cron"
 const app = express();
 const server = http.createServer(app);
 const PORT = config.port;
