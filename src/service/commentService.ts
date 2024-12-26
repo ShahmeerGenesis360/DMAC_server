@@ -51,17 +51,45 @@ const CommentService = () => {
     });
   };
 
-  const incrementCommentLike = async (commentId: string) => {
-    return Comment.findByIdAndUpdate(commentId, { $inc: { like: 1 } });
+  const incrementCommentLike = async (
+    commentId: string,
+    session?: mongoose.ClientSession
+  ) => {
+    return Comment.findByIdAndUpdate(
+      commentId,
+      { $inc: { like: 1 } },
+      { session }
+    );
   };
-  const decrementCommentLike = async (commentId: string) => {
-    return Comment.findByIdAndUpdate(commentId, { $inc: { like: -1 } });
+  const decrementCommentLike = async (
+    commentId: string,
+    session?: mongoose.ClientSession
+  ) => {
+    return Comment.findByIdAndUpdate(
+      commentId,
+      { $inc: { like: -1 } },
+      { session }
+    );
   };
-  const incrementCommentDislike = async (commentId: string) => {
-    return Comment.findByIdAndUpdate(commentId, { $inc: { dislike: 1 } });
+  const incrementCommentDislike = async (
+    commentId: string,
+    session?: mongoose.ClientSession
+  ) => {
+    return Comment.findByIdAndUpdate(
+      commentId,
+      { $inc: { dislike: 1 } },
+      { session }
+    );
   };
-  const decrementCommentDislike = async (commentId: string) => {
-    return Comment.findByIdAndUpdate(commentId, { $inc: { dislike: -1 } });
+  const decrementCommentDislike = async (
+    commentId: string,
+    session?: mongoose.ClientSession
+  ) => {
+    return Comment.findByIdAndUpdate(
+      commentId,
+      { $inc: { dislike: -1 } },
+      { session }
+    );
   };
   return {
     getChatById,

@@ -3,111 +3,102 @@ import logger from "../utils/logger";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/response";
 import CommentService from "../service/commentService";
 import ReactionService from "../service/reactionService";
+import mongoose from "mongoose";
 interface CustomRequest extends Request {
   user?: any;
 }
 const ReactionController = () => {
   const reactionService = ReactionService();
   const commentService = CommentService();
+
   const addReactionOnComment = async (req: CustomRequest, res: Response) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
       const { reaction, indexId } = req.body;
       const { commentId } = req.params;
+
       if (!req?.user?.id) {
         return sendErrorResponse({
           req,
           res,
           error: "User is not authenticated",
-          statusCode: 404,
+          statusCode: 401,
         });
       }
-      if (!commentId)
+      if (!commentId || !reaction || !indexId) {
         return sendErrorResponse({
           req,
           res,
-          error: "commentId is required",
-          statusCode: 404,
-        });
-      if (!reaction || !indexId) {
-        return sendErrorResponse({
-          req,
-          res,
-          error: "reaction and indexId is required",
-          statusCode: 404,
+          error: "commentId, reaction, and indexId are required",
+          statusCode: 400,
         });
       }
-      // check if user has already reacted
-      const isUserReacted = await reactionService.isUserReacted(
-        req.user.id,
+
+      const userId = req.user.id;
+      const existingReaction = await reactionService.isUserReacted(
+        userId,
         commentId
       );
-      if (!isUserReacted) {
-        await reactionService.addReaction(
-          reaction,
-          req.user.id,
-          indexId,
-          commentId
-        );
-        if (reaction === "LIKE") {
-          // increment like count
-          await commentService.incrementCommentLike(commentId);
-        } else {
-          // increment dislike count
-          await commentService.incrementCommentDislike(commentId);
-        }
-        return sendSuccessResponse({
-          res,
-          message: "Reaction added successfully",
-        });
-      } else {
-        if (isUserReacted.reaction === reaction) {
-          // remove reaction
-          await reactionService.removeReaction(isUserReacted._id);
+
+      if (existingReaction) {
+        if (existingReaction.reaction === reaction) {
+          // Remove reaction if it's the same
+          await reactionService.removeReaction(existingReaction._id);
           if (reaction === "LIKE") {
-            // decrement like count
-            await commentService.decrementCommentLike(commentId);
+            await commentService.decrementCommentLike(commentId, session);
           } else {
-            // decrement dislike count
-            await commentService.decrementCommentDislike(commentId);
+            await commentService.decrementCommentDislike(commentId, session);
           }
+          await session.commitTransaction();
           return sendSuccessResponse({
             res,
             message: "Reaction removed successfully",
           });
-
-          // decrement react count from comment based on reaction
         } else {
-          // update reaction
-          await reactionService.updateReaction(isUserReacted._id, reaction);
+          // Update reaction if it's different
+          await reactionService.updateReaction(existingReaction._id, reaction);
           if (reaction === "LIKE") {
-            // increment like count and decrement dislike count
-            await commentService.incrementCommentLike(commentId);
-            await commentService.decrementCommentDislike(commentId);
+            await commentService.incrementCommentLike(commentId, session);
+            await commentService.decrementCommentDislike(commentId, session);
           } else {
-            // increment dislike count and decrement like count
-            await commentService.incrementCommentDislike(commentId);
-            await commentService.decrementCommentLike(commentId);
+            await commentService.incrementCommentDislike(commentId, session);
+            await commentService.decrementCommentLike(commentId, session);
           }
+          await session.commitTransaction();
           return sendSuccessResponse({
             res,
             message: "Reaction updated successfully",
           });
         }
+      } else {
+        // Add new reaction
+        await reactionService.addReaction(reaction, userId, indexId, commentId);
+        if (reaction === "LIKE") {
+          await commentService.incrementCommentLike(commentId, session);
+        } else {
+          await commentService.incrementCommentDislike(commentId, session);
+        }
+        await session.commitTransaction();
+        return sendSuccessResponse({
+          res,
+          message: "Reaction added successfully",
+        });
       }
     } catch (error) {
-      logger.error(
-        `Error while adding reaction on comment ==> `,
-        error.message
-      );
+      await session.abortTransaction();
+      logger.error(`Error while adding reaction on comment: ${error.message}`);
       sendErrorResponse({
         req,
         res,
         error: error.message,
         statusCode: 500,
       });
+    } finally {
+      session.endSession();
     }
   };
-
   return {
     addReactionOnComment,
   };
