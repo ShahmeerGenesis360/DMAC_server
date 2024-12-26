@@ -20,9 +20,9 @@ const CommentService = () => {
     const totalPages = Math.ceil(totalRecords / pageSize);
 
     // Fetch the paginated data
-    const data = await Comment.find({indexId: id})
+    const data = await Comment.find({ indexId: id })
       .sort({ createdAt: -1 })
-      .skip((page-1) * pageSize)
+      .skip((page - 1) * pageSize)
       .limit(pageSize)
       .populate("userId", "_id username name ")
       .exec();
@@ -50,10 +50,27 @@ const CommentService = () => {
       isBullish,
     });
   };
+
+  const incrementCommentLike = async (commentId: string) => {
+    return Comment.findByIdAndUpdate(commentId, { $inc: { like: 1 } });
+  };
+  const decrementCommentLike = async (commentId: string) => {
+    return Comment.findByIdAndUpdate(commentId, { $inc: { like: -1 } });
+  };
+  const incrementCommentDislike = async (commentId: string) => {
+    return Comment.findByIdAndUpdate(commentId, { $inc: { dislike: 1 } });
+  };
+  const decrementCommentDislike = async (commentId: string) => {
+    return Comment.findByIdAndUpdate(commentId, { $inc: { dislike: -1 } });
+  };
   return {
     getChatById,
     getChatByIndexId,
     createChatbyIndexId,
+    incrementCommentLike,
+    decrementCommentLike,
+    incrementCommentDislike,
+    decrementCommentDislike,
   };
 };
 
