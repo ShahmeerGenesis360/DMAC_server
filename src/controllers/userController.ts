@@ -115,10 +115,51 @@ const userController = () => {
     });
   };
 
+  const getAllUsers = async (req: Request, res: Response) => {
+    logger.info(`userController get all users`);
+    try {
+      const { page = 1, limit = 10, search } = req.query;
+      const query: any = {};
+
+      if (search) {
+        query.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { username: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const users = await User.find(query)
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+
+      const totalUsers = await User.countDocuments(query);
+
+      sendSuccessResponse({
+        res,
+        data: {
+          users,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / Number(limit)),
+          currentPage: Number(page),
+        },
+        message: "Users fetched successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while fetching all users ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+
   return {
     getOrCreateUser,
     updateUser,
     getUserbyToken,
+    getAllUsers,
   };
 };
 
