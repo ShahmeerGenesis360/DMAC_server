@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 const SECRET_KEY = process.env.JWT_SECRET || "your_jwt_secret";
+const JWT_SECRET = "your_secret_key_here"; // Replace with an environment variable in production
+
 
 export const createToken = async (
   user: Record<string, any>
@@ -38,6 +40,34 @@ export const decodeTokenFromRequest = (
 
   try {
     const decodedUser = jwt.verify(token, SECRET_KEY);
+    console.log({ decodedUser });
+
+    if (!decodedUser) {
+      return next(new Error("Invalid or expired token"));
+    }
+
+    req.user = decodedUser; // Assign decoded user to the request object
+    next(); // Pass control to the next middleware
+  } catch (error) {
+    return next(new Error("Invalid or expired token"));
+  }
+};
+
+export const decodeTokenFromAdminRequest = (
+  req: CustomRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers["authorization"] || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return next(new Error("Authorization token is missing or invalid"));
+  }
+
+  const token = authHeader.split(" ")[1]; // Extract token after "Bearer "
+
+  try {
+    const decodedUser = jwt.verify(token, JWT_SECRET);
     console.log({ decodedUser });
 
     if (!decodedUser) {
