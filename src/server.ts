@@ -7,6 +7,8 @@ import { initializeSocket } from "./socket";
 import { config } from "./config";
 import Mongo from "./config/database";
 import router from "./routes";
+import path from "path";
+
 import "./cron"
 const app = express();
 const server = http.createServer(app);
@@ -20,6 +22,7 @@ const corsOptions = {
   app.use(express.json({ limit: "100kb" }));
   app.use(express.urlencoded({ extended: true, limit: "100kb" }));
   app.use(helmet());
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
   app.get("/", (req, res) => {
     res.send("SERVER IS RUNNING ");
   });
