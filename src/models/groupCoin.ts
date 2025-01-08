@@ -4,6 +4,12 @@ import { Schema, model, Document } from "mongoose";
 export interface ICoin extends Document {
   coinName: string;
   address: string;
+  proportion: number;
+}
+
+export interface IFaq extends Document {
+  question: string;
+  answer: string;
 }
 
 // Define the IGroupCoin interface
@@ -12,13 +18,24 @@ export interface IGroupCoin extends Document {
   coins: Array<ICoin>;
   imageUrl?: string;
   visitCount: number;
+  description: string;
+  faq: Array<IFaq>;
 }
 
 // Define the ICoin schema
 const coinSchema = new Schema<ICoin>(
   {
+    proportion: { type: Number, required: true },
     coinName: { type: String, required: true },
     address: { type: String, required: true },
+  },
+  { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
+);
+
+const faqSchema = new Schema<IFaq>(
+  {
+    question: { type: String, required: true },
+    answer: { type: String, required: true },
   },
   { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
 );
@@ -29,7 +46,9 @@ const groupCoinSchema = new Schema<IGroupCoin>(
     name: { type: String, required: true },
     coins: { type: [coinSchema], required: true }, // Use the coinSchema here
     imageUrl: { type: String },
+    description: { type: String, required: true },
     visitCount: { type: Number, default: 0 },
+    faq: { type: [faqSchema], required: true },
   },
   { timestamps: true }
 );

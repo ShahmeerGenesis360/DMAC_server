@@ -1,4 +1,6 @@
+import { upload } from "../utils/multer";
 import { Router } from "express";
+// import { multerSingleFileUpload } from "../utils";
 import indexController from "../controllers/indexController";
 
 const index = indexController();
@@ -6,6 +8,6 @@ const indexRouter = Router();
 
 indexRouter.get("/", index.getAllIndex);
 indexRouter.get("/:id", index.getIndexById);
-indexRouter.post("/", index.createIndex);
+indexRouter.post("/", upload.single("file"), index.createIndex);
 
 export default indexRouter;
