@@ -13,13 +13,19 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, imageUrl, visitCount } = req.body;
+      const { name, coins, description, faq } = req.body;
+      const imageUrl = req?.file?.filename;
+      console.log(imageUrl,"imageUrl")
+      // return
+      const coinList = JSON.parse(coins);
+      const faqList = JSON.parse(faq);
       // Create a new GroupCoin document
       const groupCoin = new GroupCoin({
         name,
-        coins,
-        // imageUrl,
-        // visitCount,
+        coins: coinList,
+        imageUrl,
+        description,
+        faq: faqList,
       });
 
       // Save to the database
@@ -123,6 +129,7 @@ const indexController = () => {
             name: index.name,
             coins: index.coins,
             visitCount: index.visitCount,
+            imageUrl:index.imageUrl,
             a1H: averagePercentage1h,
             a1D: averagePercentage24h,
             a1W: averagePercentage7d,
