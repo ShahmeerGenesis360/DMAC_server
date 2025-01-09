@@ -22,7 +22,14 @@ const corsOptions = {
   app.use(express.json({ limit: "100kb" }));
   app.use(express.urlencoded({ extended: true, limit: "100kb" }));
   app.use(helmet());
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use(
+    "/uploads",
+    express.static(path.join(__dirname, "uploads"), {
+      setHeaders: (res) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      },
+    })
+  );
   app.get("/", (req, res) => {
     res.send("SERVER IS RUNNING ");
   });
