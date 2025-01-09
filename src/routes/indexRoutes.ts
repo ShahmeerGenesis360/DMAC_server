@@ -9,5 +9,6 @@ const indexRouter = Router();
 indexRouter.get("/", index.getAllIndex);
 indexRouter.get("/:id", index.getIndexById);
 indexRouter.post("/", upload.single("file"), index.createIndex);
+indexRouter.put("/:id", upload.single("file"), index.updateIndex);
 
 export default indexRouter;
