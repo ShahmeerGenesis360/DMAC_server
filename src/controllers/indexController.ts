@@ -15,11 +15,8 @@ const indexController = () => {
     try {
       const { name, coins, description, faq } = req.body;
       const imageUrl = req?.file?.filename;
-      console.log(imageUrl,"imageUrl")
-      // return
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
-      // Create a new GroupCoin document
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -128,6 +125,8 @@ const indexController = () => {
             _id: index._id,
             name: index.name,
             coins: index.coins,
+            faq: index.faq,
+            description: index.description,
             visitCount: index.visitCount,
             imageUrl:index.imageUrl,
             a1H: averagePercentage1h,
@@ -190,10 +189,66 @@ const indexController = () => {
       });
     }
   };
+
+  const updateIndex = async (req: Request, res: Response) => {
+    logger.info(`indexController update an index`);
+    try {
+      const { id, name, coins, description, faq, imageUrl } = req.body;
+  
+      // Parse coins and FAQ
+      const coinList = coins ? JSON.parse(coins) : [];
+      const faqList = faq ? JSON.parse(faq) : [];
+  
+      // Find the existing GroupCoin by ID
+      const existingGroupCoin = await GroupCoin.findById(id);
+      if (!existingGroupCoin) {
+        return sendErrorResponse({
+          req,
+          res,
+          error: "GroupCoin not found",
+          statusCode: 404,
+        });
+      }
+  
+      // Handle the image (uploaded file or link)
+      let updatedImageUrl = existingGroupCoin.imageUrl; // Default to the current image URL
+      if (req?.file?.filename) {
+        updatedImageUrl = req.file.filename; // New uploaded file
+      } else if (imageUrl) {
+        updatedImageUrl = imageUrl; // New image link
+      }
+  
+      // Update the GroupCoin fields
+      existingGroupCoin.name = name || existingGroupCoin.name;
+      existingGroupCoin.coins = coinList.length > 0 ? coinList : existingGroupCoin.coins;
+      existingGroupCoin.imageUrl = updatedImageUrl;
+      existingGroupCoin.description = description || existingGroupCoin.description;
+      existingGroupCoin.faq = faqList.length > 0 ? faqList : existingGroupCoin.faq;
+  
+      // Save the updated document
+      const updatedGroupCoin = await existingGroupCoin.save();
+  
+      sendSuccessResponse({
+        res,
+        data: updatedGroupCoin,
+        message: "GroupCoin updated successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while updating an index ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+  
   return {
     getAllIndex,
     createIndex,
     getIndexById,
+    updateIndex
   };
 };
 
