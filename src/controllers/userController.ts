@@ -7,6 +7,12 @@ interface CustomRequest extends Request {
   user?: any;
 }
 const userController = () => {
+  const startOfMonth = (date: any) =>
+    new Date(date.getFullYear(), date.getMonth(), 1);
+  const startOfWeek = (date: any) => {
+    const day = date.getDay();
+    return new Date(date.setDate(date.getDate() - day));
+  };
   const getOrCreateUser = async (req: Request, res: Response) => {
     logger.info(`userController get or create user`);
     try {
@@ -115,6 +121,126 @@ const userController = () => {
     });
   };
 
+  const getUserStats = async (req: CustomRequest, res: Response) => {
+    try {
+      const { type } = req.query;
+
+      // Find the earliest user creation date
+      const firstUser: any = await User.findOne()
+        .sort({ createdAt: 1 })
+        .select("createdAt");
+
+      if (!firstUser) {
+        return res.status(404).json({ message: "No users found" });
+      }
+
+      const startDate = new Date(firstUser?.createdAt); // Date of the first user
+      const currentDate = new Date(); // Current date
+
+      if (type === "month") {
+        // Group data by month and return total user counts for each month
+        const monthlyData = await User.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: currentDate },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: "$createdAt" },
+                month: { $month: "$createdAt" },
+              },
+              count: { $sum: 1 }, // Total users per month
+            },
+          },
+          {
+            $sort: {
+              "_id.year": 1,
+              "_id.month": 1,
+            },
+          },
+        ]);
+
+        // Group the results by month in the format YYYY-MM
+        const groupedData: any = {};
+        let totalUsers = 0; // Variable to store the total user count
+        let latestMonth = ""; // Variable to store the latest month
+        let latestMonthCount = 0; // Variable to store the count of the latest month
+
+        monthlyData.forEach((data) => {
+          const monthKey = `${data._id.year}-${String(data._id.month).padStart(
+            2,
+            "0"
+          )}`;
+          groupedData[monthKey] = data.count; // Store the total count for each month
+
+          totalUsers += data.count; // Accumulate total users
+
+          // Check for the latest month
+          if (
+            !latestMonth ||
+            new Date(`${data._id.year}-${data._id.month}`).getTime() >
+              new Date(latestMonth).getTime()
+          ) {
+            latestMonth = `${data._id.year}-${String(data._id.month).padStart(
+              2,
+              "0"
+            )}`;
+            latestMonthCount = data.count; // Store the count of the latest month
+          }
+        });
+
+        // Return the grouped data with total count per month, total users, latest month, and latest month's count
+        res.status(200).json({
+          type: "month",
+          data: {
+            groupedData,
+            totalUsers,
+            latestMonth,
+            latestMonthCount, // Added the latest month's count
+          },
+        });
+      } else if (type === "week") {
+        // Group data by week and return weekly user counts
+        const weeklyData = await User.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startDate, $lte: currentDate },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: "$createdAt" },
+                week: { $week: "$createdAt" },
+              },
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $sort: {
+              "_id.year": 1,
+              "_id.week": 1,
+            },
+          },
+        ]);
+
+        res.status(200).json({
+          type: "week",
+          data: {
+            weeklyData,
+          },
+        });
+      } else {
+        res.status(400).json({ message: "Invalid type parameter" });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
   const getAllUsers = async (req: Request, res: Response) => {
     logger.info(`userController get all users`);
     try {
@@ -160,6 +286,7 @@ const userController = () => {
     updateUser,
     getUserbyToken,
     getAllUsers,
+    getUserStats,
   };
 };
 
