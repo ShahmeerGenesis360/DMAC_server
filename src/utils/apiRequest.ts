@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
-
+import {SwapResult} from "../types/index"
 import {
   PublicKey,
   Keypair,
@@ -11,6 +11,9 @@ import {
   sendAndConfirmTransaction,
   SystemProgram,
   Connection,
+  VersionedTransaction,
+  MessageV0,
+  TransactionMessage,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -57,14 +60,13 @@ dotenv.config();
 const filePath = "./result.json";
 
 function getAdminKeypair() {
-  // const adminPrivateKey = new Buffer(process.env.NEXT_ADMIN_PK as string, 'base64').toString('ascii');
-  const adminPrivateKey = process.env.NEXT_PUBLIC_ADMIN_PK as string;
+  const adminPrivateKey = process.env.PRIVATE_KEY as string;
   return anchor.web3.Keypair.fromSecretKey(bs58.decode(adminPrivateKey));
 }
 
 function getProgramId() {
   return new anchor.web3.PublicKey(
-    process.env.NEXT_PUBLIC_PROGRAM_ID as string
+    process.env.PROGRAM_ID as string
   );
 }
 
@@ -303,7 +305,7 @@ export async function buyIndex(
   return txHash;
 }
 
-export async function swapToTknStart(program: Program, mintKeypair: Keypair) {
+export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -316,12 +318,26 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair) {
   };
   // console.log("accounts: ", accounts);
 
-  let txHash = await program.rpc.swapToTknStart({
-    accounts: accounts,
-    signers: [adminKeypair],
-  });
+//   let txHash = await program.rpc.swapToTknStart({
+//     accounts: accounts,
+//     signers: [adminKeypair],
+//   });
+    const transaction = program.transaction.swapToTknStart({
+        accounts: accounts,
+        signers: [adminKeypair],
+    });
+    const blockhash = await provider.connection.getLatestBlockhash();
+    const messageV0 = new TransactionMessage({
+    payerKey: adminPublicKey,
+    recentBlockhash: blockhash.blockhash,
+    instructions: transaction.instructions, // Use the instructions from the program RPC
+    }).compileToV0Message();
 
-  return txHash;
+// Convert the message into a VersionedTransaction
+    const versionedTransaction = new VersionedTransaction(messageV0);
+
+
+    return versionedTransaction;
 }
 
 export async function swapToTkn(
@@ -330,7 +346,7 @@ export async function swapToTkn(
   mintKeypair: Keypair,
   tokenPublicKey: PublicKey,
   amountInSol: number
-) {
+): Promise<SwapResult> {
   const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
@@ -369,35 +385,42 @@ export async function swapToTkn(
     );
     
     // console.log("associatedTokenAddress", associatedTokenAddress);
-    await airdrop(provider.connection, associatedTokenAddress.address, 1);
+    // await airdrop(provider.connection, associatedTokenAddress.address, 1);
     const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
     const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
     // Create a transaction to transfer SOL and sync the native account
-    const transaction = new Transaction().add(syncNativeIx);
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = adminPublicKey;
+    const messageV0 = new TransactionMessage({
+        payerKey: adminPublicKey,
+        recentBlockhash: blockhash,
+        instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
+      }).compileToV0Message();
+    const tx1 = new VersionedTransaction(messageV0)
+    // const tx1 = await provider.sendAndConfirm(versionedSyncNativeTransaction, [adminKeypair]);
+    // const transaction = new Transaction().add(syncNativeIx);
+    // transaction.recentBlockhash = blockhash;
+    // transaction.feePayer = adminPublicKey;
     // Sign and send the transaction
-    const signature = await sendAndConfirmTransaction(provider.connection, transaction, [
-      adminKeypair,
-    ]);
+    // const signature = await sendAndConfirmTransaction(provider.connection, transaction, [
+    //   adminKeypair,
+    // ]);
 
-  const txHash = await swapToToken(
-    program,
-    provider,
-    adminKeypair,
-    programState,
-    mintPublicKey,
-    getIndexInfoPda(mintPublicKey),
-    getSwapToTknInfoPda(mintPublicKey),
-    computeBudgetInstructions,
-    swapInstruction,
-    addressLookupTableAddresses
-  );
+    const tx2 = await swapToToken(
+        program,
+        provider,
+        adminKeypair,
+        programState,
+        mintPublicKey,
+        getIndexInfoPda(mintPublicKey),
+        getSwapToTknInfoPda(mintPublicKey),
+        computeBudgetInstructions,
+        swapInstruction,
+        addressLookupTableAddresses
+    );
 
-  return txHash;
+    return {tx1, tx2};
 }
 
-export async function swapToTknEnd(program: Program, mintKeypair: Keypair) {
+export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -410,12 +433,21 @@ export async function swapToTknEnd(program: Program, mintKeypair: Keypair) {
   };
   // console.log("accounts: ", accounts);
 
-  let txHash = await program.rpc.swapToTknEnd({
+  let transaction = await program.transaction.swapToTknEnd({
     accounts: accounts,
     signers: [adminKeypair],
   });
+  const blockhash = await provider.connection.getLatestBlockhash();
+    const messageV0 = new TransactionMessage({
+    payerKey: adminPublicKey,
+    recentBlockhash: blockhash.blockhash,
+    instructions: transaction.instructions, // Use the instructions from the program RPC
+    }).compileToV0Message();
 
-  return txHash;
+// Convert the message into a VersionedTransaction
+    const versionedTransaction = new VersionedTransaction(messageV0);
+
+  return versionedTransaction;
 }
 
 export async function swapToSol(
@@ -450,7 +482,7 @@ export async function swapToSol(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  const txHash = await swapToSolana(
+  const txn = await swapToSolana(
     program,
     provider,
     adminKeypair,
@@ -464,7 +496,7 @@ export async function swapToSol(
     addressLookupTableAddresses
   );
 
-  return txHash;
+  return txn;
 }
 
 export async function sellIndex(
@@ -513,7 +545,8 @@ export async function sellIndex(
 export async function swapToSolEnd(
   program: Program, 
   mintKeypair: Keypair, 
-  userPublicKey: PublicKey) {
+  userPublicKey: PublicKey,
+  provider: anchor.Provider) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -527,309 +560,21 @@ export async function swapToSolEnd(
   };
   // console.log("accounts: ", accounts);
 
-  let txHash = await program.rpc.swapToSolEnd({
+  let transaction = await program.transaction.swapToSolEnd({
     accounts: accounts,
     signers: [adminKeypair],
   });
+  const blockhash = await provider.connection.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+    payerKey: adminPublicKey,
+    recentBlockhash: blockhash.blockhash,
+    instructions: transaction.instructions, // Use the instructions from the program RPC
+    }).compileToV0Message();
 
-  return txHash;
+// Convert the message into a VersionedTransaction
+    const versionedTransaction = new VersionedTransaction(messageV0);
+  return versionedTransaction;
 }
-
-// export async function uninitialize(
-//   program: Program) {
-
-//   let txHash = await program.rpc.uninitialize(
-//     {accounts: {
-//       admin: adminPublicKey,
-//       agentsAiCelebPda: agentsAiCelebStatePda,
-//       systemProgram: SYSTEM_PROGRAM_ID
-//     },
-//     signers: [adminKeypair],
-//   });
-
-//   return txHash;
-// }
-
-// export async function createToken(
-//   program: Program,
-//   name: string,
-//   symbol: string,
-//   uri: string,
-//   creatorPublicKey: PublicKey,
-//   creatorKeypair?: Keypair) {
-
-//   const mintPublicKey = getMint(creatorPublicKey, symbol);
-//   const accounts = {
-//     creator: creatorPublicKey,
-//     mint: mintPublicKey,
-//     metadata: getMetadata(mintPublicKey),
-//     systemProgram: SYSTEM_PROGRAM_ID,
-//     tokenProgram: TOKEN_PROGRAM_ID,
-//     tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-//     rent: SYSVAR_RENT_PUBKEY,
-//     tokenInfo: getTokenInfoPda(mintPublicKey),
-//   }
-//   // console.log("accounts", accounts);
-
-//   let txHash = await program.rpc.createToken(
-//     {
-//       name: name,
-//       symbol: symbol,
-//       uri: uri
-//     },
-//     {
-//       accounts: accounts,
-//       signers: creatorKeypair ? [creatorKeypair] : [],
-//   });
-
-//   return [txHash, mintPublicKey.toString()];
-// }
-
-// export async function buyToken(
-//   program: Program,
-//   creatorAddress: string,
-//   symbol: string,
-//   amount_in_sol: number,
-//   userPublicKey: PublicKey,
-//   userKeypair?: Keypair) {
-
-//   const creatorPublicKey = new PublicKey(creatorAddress);
-//   const mintPublicKey = getMint(creatorPublicKey, symbol);
-
-//   const userTokenAccount = await createAndGetTokenAccount(
-//       program,
-//       userPublicKey,
-//       mintPublicKey,
-//       TOKEN_PROGRAM_ID
-//   );
-
-//   const accounts = {
-//     user: userPublicKey,
-//     creator: creatorPublicKey,
-//     mint: mintPublicKey,
-//     userTokenAccount: userTokenAccount,
-//     systemProgram: SYSTEM_PROGRAM_ID,
-//     tokenProgram: TOKEN_PROGRAM_ID,
-//     associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
-//     tokenInfo: getTokenInfoPda(mintPublicKey),
-//   }
-//   // console.log("accounts", accounts);
-
-//   let txHash = await program.rpc.buyToken(
-//     symbol,
-//     new anchor.BN(amount_in_sol * LAMPORTS_PER_SOL),
-//     {
-//       accounts: accounts,
-//       signers: userKeypair ? [userKeypair] : [],
-//     }
-//   );
-
-//   return txHash;
-// }
-
-// export async function sellToken(
-//   program: Program,
-//   creatorAddress: string,
-//   symbol: string,
-//   amount_in_token: number,
-//   userPublicKey: PublicKey,
-//   userKeypair?: Keypair) {
-
-//   const creatorPublicKey = new PublicKey(creatorAddress);
-//   const mintPublicKey = getMint(creatorPublicKey, symbol);
-//   const userTokenAccount = await createAndGetTokenAccount(
-//       program,
-//       userPublicKey,
-//       mintPublicKey,
-//       TOKEN_PROGRAM_ID
-//   );
-
-//   const accounts = {
-//     user: userPublicKey,
-//     creator: creatorPublicKey,
-//     mint: mintPublicKey,
-//     userTokenAccount: userTokenAccount,
-//     systemProgram: SYSTEM_PROGRAM_ID,
-//     tokenProgram: TOKEN_PROGRAM_ID,
-//     tokenInfo: getTokenInfoPda(mintPublicKey),
-//   }
-//   // console.log("accounts", accounts);
-
-//   let txHash = await program.rpc.sellToken(
-//     symbol,
-//     new anchor.BN(amount_in_token * LAMPORTS_PER_SOL),
-//     {
-//       accounts: accounts,
-//       signers: userKeypair ? [userKeypair] : [],
-//   });
-
-//   return txHash;
-// }
-
-// export async function createWsol(
-//   program: Program,
-//   creatorAddress: string,
-//   symbol: string) {
-
-//   const creatorPublicKey = new PublicKey(creatorAddress);
-//   const mintPublicKey = getMint(creatorPublicKey, symbol);
-//   const creator = adminKeypair;
-//   const token0 = SOL_MINT;
-//   const token0Program = TOKEN_PROGRAM_ID;
-//   const tokenInfoPda = getTokenInfoPda(mintPublicKey)
-
-//   const wsolTokenAccount = getAssociatedTokenAddressSync(
-//     token0,
-//     creator.publicKey,
-//     false,
-//     token0Program
-//   );
-
-//   const accounts = {
-//     admin: adminPublicKey,
-//     mint: mintPublicKey,
-//     wsolMint: SOL_MINT,
-//     wsolTokenAccount: wsolTokenAccount,
-//     tokenProgram: TOKEN_PROGRAM_ID,
-//     systemProgram: SYSTEM_PROGRAM_ID,
-//     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-//     tokenInfo: tokenInfoPda,
-//     agentsAiCelebPda: agentsAiCelebStatePda,
-//   }
-//   // console.log("accounts: ", accounts);
-
-//   const txHash = await program.rpc.createWsol(
-//     symbol,
-//     {
-//       accounts: accounts,
-//       signers: [adminKeypair]
-//     }
-//   );
-
-//   return txHash;
-// }
-
-// export async function setLive(
-//   program: Program,
-//   creatorAddress: string,
-//   symbol: string) {
-
-//   const creatorPublicKey = new PublicKey(creatorAddress);
-//   const mintPublicKey = getMint(creatorPublicKey, symbol);
-//   const creator = adminKeypair;
-//   const token0 = SOL_MINT;
-//   const token1 = mintPublicKey;
-//   const token0Program = TOKEN_PROGRAM_ID;
-//   const token1Program = TOKEN_PROGRAM_ID;
-//   const createPoolFee = createPoolFeeReceive;
-//   const tokenInfoPda = getTokenInfoPda(mintPublicKey);
-
-//   const creatorToken0 = getAssociatedTokenAddressSync(
-//     token0,
-//     // tokenInfoPda,
-//     // true,
-//     adminPublicKey,
-//     false,
-//     token0Program
-//   );
-//   const creatorToken1 = getAssociatedTokenAddressSync(
-//     token1,
-//     // tokenInfoPda,
-//     // true,
-//     adminPublicKey,
-//     false,
-//     token1Program
-//   );
-
-//   const [auth] = await getAuthAddress(cpSwapProgram);
-//   const [poolAddress] = await getPoolAddress(
-//     configAddress,
-//     token0,
-//     token1,
-//     cpSwapProgram
-//   );
-//   const [lpMintAddress] = await getPoolLpMintAddress(
-//     poolAddress,
-//     cpSwapProgram
-//   );
-//   const [vault0] = await getPoolVaultAddress(
-//     poolAddress,
-//     token0,
-//     cpSwapProgram
-//   );
-//   const [vault1] = await getPoolVaultAddress(
-//     poolAddress,
-//     token1,
-//     cpSwapProgram
-//   );
-//   const [creatorLpTokenAddress] = await PublicKey.findProgramAddress(
-//     [
-//       creator.publicKey.toBuffer(),
-//       TOKEN_PROGRAM_ID.toBuffer(),
-//       lpMintAddress.toBuffer(),
-//     ],
-//     ASSOCIATED_PROGRAM_ID
-//   );
-
-//   const [observationAddress] = await getOrcleAccountAddress(
-//     poolAddress,
-//     cpSwapProgram
-//   );
-
-//   const accounts = {
-//     creator: creatorPublicKey,
-//     cpSwapProgram: cpSwapProgram,
-//     admin: creator.publicKey,
-//     ammConfig: configAddress,
-//     authority: auth,
-//     poolState: poolAddress,
-//     token0Mint: token0,
-//     token1Mint: token1,
-//     lpMint: lpMintAddress,
-//     creatorToken0,
-//     creatorToken1,
-//     creatorLpToken: creatorLpTokenAddress,
-//     token0Vault: vault0,
-//     token1Vault: vault1,
-//     createPoolFee,
-//     observationState: observationAddress,
-//     tokenProgram: TOKEN_PROGRAM_ID,
-//     token0Program: token0Program,
-//     token1Program: token1Program,
-//     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-//     systemProgram: SYSTEM_PROGRAM_ID,
-//     rent: SYSVAR_RENT_PUBKEY,
-//     agentsAiCelebPda: agentsAiCelebStatePda,
-//     tokenInfo: getTokenInfoPda(mintPublicKey)
-//   }
-//   // console.log("accounts: ", accounts);
-
-//   const txHash = await program.methods
-//   .setLive(symbol)
-//   .accounts(accounts)
-//   .preInstructions([
-//     ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
-//   ])
-//   .rpc();
-
-//   return txHash;
-// }
-
-// export async function displayPda(program: Program, indexConfig: PublicKey) {
-//   const pdaData = await program.account.indexConfig.fetch(indexConfig);
-//   const admin = pdaData.admin.toString();
-//   const total_value = pdaData.total_value.toString();
-//   const total_supply = pdaData.total_supply.toString();
-//   // const sol_in = pdaData.sol_in.toString();
-//   console.log(
-//     `(admin:${admin}, total_value:${total_value}, total_supply:${total_supply})`
-//   );
-
-  // console.log(
-  //   "Admin Balance       : ",
-  //   await connection.getBalance(adminPublicKey)
-  // );
-// }
 
 async function createAndGetTokenAccount(
   program: Program,

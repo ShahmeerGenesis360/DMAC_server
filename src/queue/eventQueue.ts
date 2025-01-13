@@ -1,6 +1,7 @@
 import {config} from "../config/index"
 import Bull, { Job } from 'bull';
 import {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue} from './eventQueueHandler'
+import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index"
 
 
 // Define types for the job data
@@ -10,7 +11,7 @@ interface EventData {
 
 interface JobData {
   eventName: string;
-  eventData: EventData;
+  eventData: any;
 }
 const { redisHost, redisPort , redisPassword, redisDb } = config;
 
@@ -43,6 +44,10 @@ eventQueue.process(async (job: Job<JobData>) => {
         await handleBuyIndexEvent(eventData);
         break;
 
+      case 'DmacSellIndexEvent':
+        await handleSellIndexEvent(eventData);
+        break;
+
       default:
         console.log(`Unknown event: ${eventName}`);
     }
@@ -60,10 +65,15 @@ async function handleCreateIndexEvent(eventData: EventData): Promise<void> {
   // Custom logic for the DmacCreateIndexEvent
 }
 
-async function handleBuyIndexEvent(eventData: EventData): Promise<void> {
+async function handleBuyIndexEvent(eventData: DmacBuyIndexEvent): Promise<void> {
   console.log("Handling Buy Index Event...");
   await handleBuyIndexQueue(eventData)
   // Custom logic for the DmacBuyIndexEvent
+}
+
+async function handleSellIndexEvent(eventData: DmacSellIndexEvent): Promise<void>{
+  console.log("Handling Sell Index Event...");
+  await handleSellIndexQueue(eventData)
 }
 
 // Add job to the queue (this function will be called when the event is received)

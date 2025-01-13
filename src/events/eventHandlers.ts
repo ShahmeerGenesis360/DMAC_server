@@ -1,4 +1,7 @@
 import { addEventToQueue } from '../queue/eventQueue';
+import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index"
+import {PublicKey} from "@solana/web3.js"
+import {BN} from '@coral-xyz/anchor'
 
 // Define the types for the event structure (if you have the specific event structure)
 // These are placeholder types, you should adjust them according to the actual event data
@@ -8,11 +11,11 @@ interface DmacCreateIndexEvent {
   initial_supply: number;
 }
 
-interface DmacBuyIndexEvent {
-  index_mint: { toBase58(): string };
-  deposited: number;
-  minted: number;
-}
+// interface DmacBuyIndexEventType {
+//   index_mint: PublicKey;
+//   deposited: number;
+//   minted: number;
+// }
 
 async function handleDmacCreateIndexEvent(event: DmacCreateIndexEvent, slot: number): Promise<void> {
   const { index_mint, tokens, initial_supply } = event;
@@ -22,16 +25,38 @@ async function handleDmacCreateIndexEvent(event: DmacCreateIndexEvent, slot: num
   await addEventToQueue('DmacCreateIndexEvent', event);
 }
 
-async function handleDmacBuyIndexEvent(event: DmacBuyIndexEvent, slot: number): Promise<void> {
-  const { index_mint, deposited, minted } = event;
-  console.log(`DmacBuyIndexEvent: Mint=${index_mint.toBase58()}, Deposited=${deposited}, Minted=${minted}`);
+async function handleDmacBuyIndexEvent(event: any, slot: number, signature: string): Promise<void> {
+  const eventData: DmacBuyIndexEvent =  {
+    index_mint: (event.index_mint as PublicKey).toString(),
+    deposited: (event.deposited as BN).toString(), 
+    minted: (event.minted as BN).toString(),
+    slot,
+    signature,
+    timestamp: Date.now(),
+  } 
+
+  console.log(`DmacBuyIndexEvent: Mint=${eventData.index_mint}, Deposited=${eventData.deposited}, Minted=${eventData.minted}`);
 
   // Add event to the Bull queue
-  await addEventToQueue('DmacBuyIndexEvent', event);
+  await addEventToQueue('DmacBuyIndexEvent', eventData);
+}
+
+async function handleDmacSellIndexEvent(event: any, slot: number, signature: string): Promise<void> {
+  const eventData: DmacSellIndexEvent =  {
+    index_mint: (event.index_mint as PublicKey).toString(),
+    withdrawn: (event.deposited as BN).toString(), 
+    burned: (event.minted as BN).toString(),
+    slot,
+    signature,
+    timestamp: Date.now(),
+  } 
+  console.log(`DmacBuyIndexEvent: Mint=${eventData.index_mint}, Deposited=${eventData.withdrawn}, Minted=${eventData.burned}`);
+  await addEventToQueue('DmacSellIndexEvent', eventData);
 }
 
 // Export the handlers for use in other parts of the application
 export {
   handleDmacCreateIndexEvent,
   handleDmacBuyIndexEvent,
+  handleDmacSellIndexEvent
 };

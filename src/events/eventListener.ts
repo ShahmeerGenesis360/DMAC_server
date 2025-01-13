@@ -1,6 +1,6 @@
 import { Program, AnchorProvider, web3, Wallet } from '@project-serum/anchor';
 import { config } from '../config/index'; // assuming config.ts is in the correct directory
-import { handleDmacCreateIndexEvent, handleDmacBuyIndexEvent } from './eventHandlers';
+import { handleDmacCreateIndexEvent, handleDmacBuyIndexEvent, handleDmacSellIndexEvent } from './eventHandlers';
 import * as anchor from '@project-serum/anchor';
 
 const { PROGRAM_ID, NETWORK , RPC_URL, getKeypair } = config;
@@ -28,6 +28,7 @@ async function listenForEvents(): Promise<void> {
   // Listen to events from the program
   program.addEventListener('DmacCreateIndexEvent', handleDmacCreateIndexEvent);
   program.addEventListener('DmacBuyIndexEvent', handleDmacBuyIndexEvent);
+  program.addEventListener('DmacSellIndexEvent', handleDmacSellIndexEvent);
   // Add more event listeners as needed
 }
 

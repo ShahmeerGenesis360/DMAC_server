@@ -171,73 +171,64 @@ export const swapToSolana = async (
   swapPayload: any,
   addressLookupTableAddresses: string[]
 ) => {
-  let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
-  const programAuthority = findProgramAuthority(program.programId);
-  const programWSOLAccount = findProgramWSOLAccount(program.programId);
-  const adminPublicKey = adminKeypair.publicKey;
-  const connection = provider.connection;
-
-  const serializedData = Buffer.from(swapInstruction.data);
-  try {
-    const deserializedData = borsh.deserialize(schema, SharedAccountsRouteArgs, serializedData);
-    console.log("Deserialized Data:", deserializedData);
-  } catch (error) {
-    console.error("Failed to deserialize data:", error);
-  }
-
-  const instructions = [
-    ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
-    await program.methods
-      .swapToSol(swapInstruction.data)
-      .accounts({
-        programAuthority: programAuthority,
-        programWsolAccount: programWSOLAccount,
-        userAccount: adminPublicKey,
-        solMint: NATIVE_MINT,
-        jupiterProgram: jupiterProgramId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-
-        programState: programState,
-        indexMint: indexMint,
-        indexInfo: indexInfo,
-        swapToSolInfo: swapToSolInfo,
-        user: userPublicKey,
-        priceUpdate: PYTH_NETWORK_PROGRAM_ID,
-      })
-      .remainingAccounts(swapInstruction.keys)
-      .instruction(),
-  ];
-
-  const blockhash = (await connection.getLatestBlockhash()).blockhash;
-
-  // If you want, you can add more lookup table accounts here
-  // console.log("addressLookupTableAddresses", addressLookupTableAddresses)
-  const addressLookupTableAccounts = await getAdressLookupTableAccounts(
-    connection,
-    addressLookupTableAddresses
-  );
-  const messageV0 = new TransactionMessage({
-    payerKey: adminPublicKey,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(addressLookupTableAccounts);
-  const transaction = new VersionedTransaction(messageV0);
-
-  try {
-    // const txSimulationResponse = await provider.simulate(transaction, [
-    //   wallet.payer,
-    // ]);
-    // console.log({ txSimulationResponse });
-    if(!provider){
-        return null;
+  try{
+    let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+    const programAuthority = findProgramAuthority(program.programId);
+    const programWSOLAccount = findProgramWSOLAccount(program.programId);
+    const adminPublicKey = adminKeypair.publicKey;
+    const connection = provider.connection;
+  
+    const serializedData = Buffer.from(swapInstruction.data);
+    try {
+      const deserializedData = borsh.deserialize(schema, SharedAccountsRouteArgs, serializedData);
+      console.log("Deserialized Data:", deserializedData);
+    } catch (error) {
+      console.error("Failed to deserialize data:", error);
     }
-    const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
-    // console.log({ txID });
-    return txID;
-  } catch (e) {
-    console.log({ simulationResponse: e });
-    throw new Error("Failure during simulation");
+  
+    const instructions = [
+      ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+      await program.methods
+        .swapToSol(swapInstruction.data)
+        .accounts({
+          programAuthority: programAuthority,
+          programWsolAccount: programWSOLAccount,
+          userAccount: adminPublicKey,
+          solMint: NATIVE_MINT,
+          jupiterProgram: jupiterProgramId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+  
+          programState: programState,
+          indexMint: indexMint,
+          indexInfo: indexInfo,
+          swapToSolInfo: swapToSolInfo,
+          user: userPublicKey,
+          priceUpdate: PYTH_NETWORK_PROGRAM_ID,
+        })
+        .remainingAccounts(swapInstruction.keys)
+        .instruction(),
+    ];
+  
+    const blockhash = (await connection.getLatestBlockhash()).blockhash;
+  
+    // If you want, you can add more lookup table accounts here
+    // console.log("addressLookupTableAddresses", addressLookupTableAddresses)
+    const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+      connection,
+      addressLookupTableAddresses
+    );
+    const messageV0 = new TransactionMessage({
+      payerKey: adminPublicKey,
+      recentBlockhash: blockhash,
+      instructions,
+    }).compileToV0Message(addressLookupTableAccounts);
+    const transaction = new VersionedTransaction(messageV0);
+    return transaction;
+  }
+  catch(error){
+    console.log("Error: web3.ts, SwapToSolana()",error)
+    throw error
   }
 };
 
@@ -253,6 +244,7 @@ export const swapToToken = async (
   swapPayload: any,
   addressLookupTableAddresses: string[]
 ) => {
+  try{
   let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
   const programAuthority = findProgramAuthority(program.programId);
   const programWSOLAccount = findProgramWSOLAccount(program.programId);
@@ -295,17 +287,10 @@ export const swapToToken = async (
   }).compileToV0Message(addressLookupTableAccounts);
   const transaction = new VersionedTransaction(messageV0);
 
-  try {
-    // const txSimulationResponse = await provider.simulate(transaction, [
-    //   wallet.payer,
-    // ]);
-    // console.log({ txSimulationResponse });
-
-    const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
-    // console.log({ txID });
-    return txID;
+    // const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
+    return transaction
   } catch (e) {
-    console.log({ simulationResponse: e });
+    console.log("Error: web3.ts, swapToToken()", e);
     throw new Error("Failure during simulation");
   }
 };

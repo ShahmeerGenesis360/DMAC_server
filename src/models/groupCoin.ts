@@ -20,6 +20,8 @@ export interface IGroupCoin extends Document {
   visitCount: number;
   description: string;
   faq: Array<IFaq>;
+  mintKeySecret: string;
+  publicKey: string;
 }
 
 // Define the ICoin schema
@@ -49,6 +51,8 @@ const groupCoinSchema = new Schema<IGroupCoin>(
     description: { type: String, required: true },
     visitCount: { type: Number, default: 0 },
     faq: { type: [faqSchema], required: true },
+    mintKeySecret: {type: String, required: true},
+    publicKey: {type: String, required:true}
   },
   { timestamps: true }
 );
