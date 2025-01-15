@@ -13,7 +13,7 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, description, faq, mintKeySecret, publicKey } = req.body;
+      const { name, coins, description, faq, mintKeySecret, mintPublicKey } = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
@@ -24,7 +24,7 @@ const indexController = () => {
         description,
         faq: faqList,
         mintKeySecret,
-        publicKey,
+        mintPublicKey,
       });
 
       // Save to the database
