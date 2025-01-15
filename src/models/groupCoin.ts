@@ -12,6 +12,11 @@ export interface IFaq extends Document {
   answer: string;
 }
 
+export interface ICollectorDetail extends Document {
+  collector: string;
+  weight: string;
+}
+
 // Define the IGroupCoin interface
 export interface IGroupCoin extends Document {
   name: string;
@@ -21,7 +26,9 @@ export interface IGroupCoin extends Document {
   description: string;
   faq: Array<IFaq>;
   mintKeySecret: string;
-  publicKey: string;
+  mintPublickey: string;
+  collectorDetail: Array<ICollectorDetail>;
+  feeAmount: number;
 }
 
 // Define the ICoin schema
@@ -42,6 +49,14 @@ const faqSchema = new Schema<IFaq>(
   { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
 );
 
+const collectorDetailSchema = new Schema<ICollectorDetail>(
+  {
+    collector: { type: String, required: true },
+    weight: { type: String, required: true },
+  },
+  { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
+);
+
 // Define the IGroupCoin schema
 const groupCoinSchema = new Schema<IGroupCoin>(
   {
@@ -52,7 +67,9 @@ const groupCoinSchema = new Schema<IGroupCoin>(
     visitCount: { type: Number, default: 0 },
     faq: { type: [faqSchema], required: true },
     mintKeySecret: {type: String, required: true},
-    publicKey: {type: String, required:true}
+    mintPublickey: {type: String, required:true},
+    collectorDetail: { type: [collectorDetailSchema], required: true },
+    feeAmount: {type: Number, required: true}
   },
   { timestamps: true }
 );

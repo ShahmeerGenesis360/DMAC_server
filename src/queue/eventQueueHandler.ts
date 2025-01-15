@@ -46,7 +46,7 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
         
         index.coins.forEach(async(coin)=>{
             const tokenAddress = new PublicKey(coin.address);
-            const amount = (coin.proportion * Number(eventData.deposited));     //amount
+            const amount = ((coin.proportion /100) * Number(eventData.deposited));     //amount
             const {tx1, tx2 } = await swapToTkn(program, provider as Provider, mintkeypair, tokenAddress, amount);      // Two transaction for each coin
             transactions.push(tx1);
             transactions.push(tx2);
@@ -72,7 +72,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         const mintkeypair = Keypair.fromSecretKey(privateKeyBuffer);
         index.coins.forEach(async(coin)=>{
             const tokenAddress = new PublicKey(coin.address);
-            const amount = (coin.proportion * Number(eventData.withdrawn)); 
+            const amount = ((coin.proportion /100) * Number(eventData.withdrawn)); 
             const txn = await swapToSol(program, provider as Provider, mintkeypair, keypair.publicKey, tokenAddress, amount);
             transactions.push(txn);
         });

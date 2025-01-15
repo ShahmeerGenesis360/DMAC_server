@@ -1,5 +1,5 @@
 import { sendErrorResponse, sendSuccessResponse } from "../utils/response";
-import { GroupCoin } from "../models/groupCoin";
+import { GroupCoin, ICollectorDetail } from "../models/groupCoin";
 import { Request, Response } from "express";
 import logger from "../utils/logger";
 import indexService from "../service/indexService";
@@ -13,10 +13,14 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, description, faq, mintKeySecret, mintPublicKey } = req.body;
+      const { name, coins, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetails, feeAmount} = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
+      const processedDetails: ICollectorDetail[] = collectorDetails.map((detail: { collector: string; weight: string; }) => ({
+        collector: detail.collector, // Ensure it's a string (Base58 format)
+        weight: detail.weight,  // Ensure it's a string (representing BN value)
+      }));
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -24,7 +28,9 @@ const indexController = () => {
         description,
         faq: faqList,
         mintKeySecret,
-        mintPublicKey,
+        mintPublickey,
+        processedDetails,
+        feeAmount,
       });
 
       // Save to the database
