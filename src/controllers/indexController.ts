@@ -17,10 +17,8 @@ const indexController = () => {
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
-      const processedDetails: ICollectorDetail[] = collectorDetails.map((detail: { collector: string; weight: string; }) => ({
-        collector: detail.collector, // Ensure it's a string (Base58 format)
-        weight: detail.weight,  // Ensure it's a string (representing BN value)
-      }));
+      const fee = parseFloat(feeAmount as string)
+      const processedDetails: ICollectorDetail[] = JSON.parse(collectorDetails)
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -30,7 +28,7 @@ const indexController = () => {
         mintKeySecret,
         mintPublickey,
         processedDetails,
-        feeAmount,
+        feeAmount: fee,
       });
 
       // Save to the database
