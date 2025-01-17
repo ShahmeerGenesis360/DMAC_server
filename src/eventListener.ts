@@ -1,15 +1,40 @@
 import express from 'express';
 import listenForEvents from './events/eventListener';
+import Mongo from './config/database';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Start listening for events from Solana
+const startServer = async () => {
+  try {
+    // Establish MongoDB connection
+    await Mongo().connect();
 
+    // Start listening for events from Solana
+    await listenForEvents().catch(err => console.error('Error starting listener:', err));
 
-// Define a simple route
-listenForEvents().catch(err => console.error('Error starting listener:', err));
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is listening on port ${PORT}`);
+    // Start the Express server
+    app.listen(PORT, () => {
+      console.log(`Server is listening on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Error starting the server:', error.message);
+    process.exit(1); // Exit the process if there's an error during startup
+  }
+};
+
+// Graceful shutdown (optional but recommended)
+process.on('SIGINT', async () => {
+  console.log('Shutting down server...');
+  await Mongo().disconnect(); // Close MongoDB connection
+  process.exit();
 });
+
+process.on('SIGTERM', async () => {
+  console.log('Shutting down server...');
+  await Mongo().disconnect(); // Close MongoDB connection
+  process.exit();
+});
+
+// Start the server
+startServer();
