@@ -20,8 +20,8 @@ const { redisHost, redisPort , redisPassword, redisDb } = config;
 const redisConfig =  {
         host: redisHost,
         port: redisPort,
-        password: redisPassword,
-        db: redisDb,
+        // password: redisPassword,
+        // db: redisDb,
 };
 
 const eventQueue = new Bull<JobData>('eventQueue', {

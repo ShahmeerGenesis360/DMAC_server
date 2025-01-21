@@ -132,6 +132,7 @@ const indexController = () => {
             name: index.name,
             coins: index.coins,
             faq: index.faq,
+            mintKeypairSecret: index.mintKeySecret,
             description: index.description,
             visitCount: index.visitCount,
             imageUrl:index.imageUrl,
