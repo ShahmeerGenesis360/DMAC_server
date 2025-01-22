@@ -3,7 +3,7 @@ import listenForEvents from './events/eventListener';
 import Mongo from './config/database';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT_EVENT || 3000;
 
 const startServer = async () => {
   try {
