@@ -27,10 +27,12 @@ async function handleDmacCreateIndexEvent(event: DmacCreateIndexEvent, slot: num
 
 async function handleDmacBuyIndexEvent(event: any, slot: number, signature: string): Promise<void> {
   console.log("Buy Index Event Processing ...")
+  console.log(event)
   const eventData: DmacBuyIndexEvent =  {
-    index_mint: (event.index_mint as PublicKey).toString(),
+    index_mint: (event.indexMint as PublicKey).toString(),
     deposited: (event.deposited as BN).toString(), 
     minted: (event.minted as BN).toString(),
+    // userAddress: (event.__context.payer as PublicKey).toString(),
     slot,
     signature,
     timestamp: Date.now(),
@@ -45,9 +47,10 @@ async function handleDmacBuyIndexEvent(event: any, slot: number, signature: stri
 async function handleDmacSellIndexEvent(event: any, slot: number, signature: string): Promise<void> {
   console.log("Sell Index Event Processing ...")
   const eventData: DmacSellIndexEvent =  {
-    index_mint: (event.index_mint as PublicKey).toString(),
-    withdrawn: (event.deposited as BN).toString(), 
-    burned: (event.minted as BN).toString(),
+    index_mint: (event.indexMint as PublicKey).toString(),
+    withdrawn: (event.withdrawn as BN).toString(), 
+    burned: (event.burned as BN).toString(),
+    userAddress: (event.__context.payer as PublicKey).toString(),
     slot,
     signature,
     timestamp: Date.now(),

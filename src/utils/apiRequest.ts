@@ -340,6 +340,25 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair, pro
     return versionedTransaction;
 }
 
+export async function getTokenProgramId(
+  connection: Connection,
+  tokenPublicKey: PublicKey
+): Promise<PublicKey> {
+  const accountInfo = await connection.getAccountInfo(tokenPublicKey);
+
+  if (!accountInfo) {
+    throw new Error("Token account not found.");
+  }
+
+  if (accountInfo.owner.equals(TOKEN_PROGRAM_ID)) {
+    return TOKEN_PROGRAM_ID;
+  } else if (accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+    return TOKEN_2022_PROGRAM_ID;
+  } else {
+    throw new Error("Unknown token program for the provided account.");
+  }
+}
+
 export async function swapToTkn(
   program: Program,
   provider: anchor.Provider,
@@ -355,13 +374,17 @@ export async function swapToTkn(
 
     // Find the best Quote from the Jupiter API
     const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
-
+    console.log(quote, "quote")
+    const tokenProgramId = await getTokenProgramId(
+      provider.connection,
+      tokenPublicKey
+    );
     // Convert the Quote into a Swap instruction
     const tokenAccount = getAssociatedTokenAddressSync(
       tokenPublicKey,
       adminPublicKey,
       false,
-      TOKEN_PROGRAM_ID
+      tokenProgramId
     );
     result = await getSwapIx(adminPublicKey, tokenAccount, quote);
 
@@ -376,33 +399,25 @@ export async function swapToTkn(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
-    provider.connection,
-    adminKeypair,
-      SOL,
-      adminPublicKey,
-      false
-    );
+  // const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
+  //   provider.connection,
+  //   adminKeypair,
+  //     SOL,
+  //     adminPublicKey,
+  //     false
+  //   );
     
-    // console.log("associatedTokenAddress", associatedTokenAddress);
-    // await airdrop(provider.connection, associatedTokenAddress.address, 1);
-    const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
-    const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
-    // Create a transaction to transfer SOL and sync the native account
-    const messageV0 = new TransactionMessage({
-        payerKey: adminPublicKey,
-        recentBlockhash: blockhash,
-        instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
-      }).compileToV0Message();
-    const tx1 = new VersionedTransaction(messageV0)
-    // const tx1 = await provider.sendAndConfirm(versionedSyncNativeTransaction, [adminKeypair]);
-    // const transaction = new Transaction().add(syncNativeIx);
-    // transaction.recentBlockhash = blockhash;
-    // transaction.feePayer = adminPublicKey;
-    // Sign and send the transaction
-    // const signature = await sendAndConfirmTransaction(provider.connection, transaction, [
-    //   adminKeypair,
-    // ]);
+    
+    // const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
+    // const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
+   
+    // const messageV0 = new TransactionMessage({
+    //     payerKey: adminPublicKey,
+    //     recentBlockhash: blockhash,
+    //     instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
+    //   }).compileToV0Message();
+    // const tx1 = new VersionedTransaction(messageV0)
+   
 
     const tx2 = await swapToToken(
         program,
@@ -417,7 +432,7 @@ export async function swapToTkn(
         addressLookupTableAddresses
     );
 
-    return {tx1, tx2};
+    return {tx2};
 }
 
 export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider) {

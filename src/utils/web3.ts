@@ -273,6 +273,7 @@ export const swapToToken = async (
       .instruction(),
   ];
 
+  console.log(instructions, "swap to token instruction")
   const blockhash = (await connection.getLatestBlockhash()).blockhash;
 
   // If you want, you can add more lookup table accounts 

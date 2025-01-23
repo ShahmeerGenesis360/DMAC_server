@@ -18,15 +18,17 @@ export interface DmacBuyIndexEvent extends BaseEvent{
   index_mint: string;
   deposited: string;
   minted: string;
+  // userAddress: string;
 }
 
 export interface DmacSellIndexEvent extends BaseEvent{
   index_mint: string;
   withdrawn: string;
   burned: string;
+  userAddress: string;
 }
 
 export type SwapResult = {
-  tx1: VersionedTransaction;
+  // tx1: VersionedTransaction;
   tx2: VersionedTransaction;
 };

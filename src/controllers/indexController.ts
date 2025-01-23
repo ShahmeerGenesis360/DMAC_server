@@ -13,12 +13,14 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetails, feeAmount} = req.body;
+      const { name, coins, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetailApi, feeAmount} = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
-      const fee = parseFloat(feeAmount as string)
-      const processedDetails: ICollectorDetail[] = JSON.parse(collectorDetails)
+      let fee = feeAmount.slice(1, feeAmount.length - 1);
+      fee = parseFloat(feeAmount as string)
+      const processedDetails: ICollectorDetail[] = JSON.parse(collectorDetailApi)
+      
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -27,7 +29,7 @@ const indexController = () => {
         faq: faqList,
         mintKeySecret,
         mintPublickey,
-        processedDetails,
+        collectorDetail:processedDetails,
         feeAmount: fee,
       });
 

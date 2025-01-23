@@ -14,7 +14,7 @@ export interface IFaq extends Document {
 
 export interface ICollectorDetail extends Document {
   collector: string;
-  weight: string;
+  weight: Number;
 }
 
 // Define the IGroupCoin interface
@@ -52,7 +52,7 @@ const faqSchema = new Schema<IFaq>(
 const collectorDetailSchema = new Schema<ICollectorDetail>(
   {
     collector: { type: String, required: true },
-    weight: { type: String, required: true },
+    weight: { type: Number, required: true },
   },
   { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
 );

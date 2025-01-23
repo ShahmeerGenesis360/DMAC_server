@@ -37,10 +37,12 @@ eventQueue.process(async (job: Job<JobData>) => {
     // Conditional logic to handle different events
     switch (eventName) {
       case 'DmacCreateIndexEvent':
+        console.log(eventData, "eventData")
         await handleCreateIndexEvent(eventData);
         break;
 
       case 'DmacBuyIndexEvent':
+        console.log(eventData, "eventData")
         await handleBuyIndexEvent(eventData);
         break;
 
