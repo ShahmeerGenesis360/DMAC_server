@@ -23,5 +23,7 @@ export const config = {
   redisPort: Number(process.env.REDIS_PORT) || 6379, // Use the port provided by the cloud Redis service
   redisPassword: process.env.REDIS_PASSWORD || undefined,  // Optional, only if Redis is password protected
   redisDb: Number(process.env.REDIS_DB) || 0,
-  PRIVATE_KEY: process.env.PRIVATE_KEY
+  PRIVATE_KEY: process.env.PRIVATE_KEY,
+  BUNDLE_TRANSACTION_LIMIT: process.env.BUNDLE_TRANSACTION_LIMIT,
+  BLOCK_ENGINE_URL: process.env.BLOCK_ENGINE_URL,
 };

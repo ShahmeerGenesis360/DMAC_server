@@ -242,7 +242,8 @@ export const swapToToken = async (
   swapToTknInfo: PublicKey,
   computeBudgetPayloads: any[],
   swapPayload: any,
-  addressLookupTableAddresses: string[]
+  addressLookupTableAddresses: string[],
+  keypair: Keypair
 ) => {
   try{
   let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
@@ -287,7 +288,7 @@ export const swapToToken = async (
     instructions,
   }).compileToV0Message(addressLookupTableAccounts);
   const transaction = new VersionedTransaction(messageV0);
-
+  transaction.sign([keypair])
     // const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
     return transaction
   } catch (e) {

@@ -10,7 +10,8 @@ import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index";
 import bs58 from 'bs58';
 import {createTransactionBatches, executeBulkSwap} from "../utils/transaction"
 import { Record } from "../models/record";
-import {AdminReward} from "../models/adminReward"
+import {AdminReward} from "../models/adminReward";
+import {bundleAndSend} from "../utils/jito"
 
 const { PROGRAM_ID, NETWORK , RPC_URL, getKeypair, PRIVATE_KEY } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
@@ -18,17 +19,10 @@ const connection = new web3.Connection(connectionUrl, 'confirmed');
 const decodedPrivateKey = bs58.decode(PRIVATE_KEY);
 const keypair = Keypair.fromSecretKey(decodedPrivateKey);
 const wallet = new Wallet(keypair)
-// Load the wallet (Keypair from private key)
-const provider = new AnchorProvider(connection,wallet, { commitment: "confirmed"}); // Assuming getKeypair() returns an instance of Keypair
 
-// const provider = new Provider(connection, wallet, {
-//   commitment: 'confirmed',
-//   preflightCommitment: 'processed',
-//   skipPreflight: false,
-// });
+const provider = new AnchorProvider(connection,wallet, { commitment: "confirmed"});
 anchor.setProvider(provider);
 
-// Initialize program using IDL
 const program = new Program(IDL as Idl, provider as Provider );
 
 async function handleCreateIndexQueue(eventData: any): Promise<void> {
@@ -38,7 +32,7 @@ async function handleCreateIndexQueue(eventData: any): Promise<void> {
 async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> {
     try{
         let transactions: VersionedTransaction[] = [];
-        const tx0 = await swapToTknStart(program, getKeypair,provider as Provider);           // first transaction
+        const tx0 = await swapToTknStart(program, getKeypair,provider as Provider, keypair);           // first transaction
         transactions.push(tx0)
         let indexPublicKey = eventData.index_mint.toString();
         indexPublicKey = `"${indexPublicKey}"`;
@@ -59,9 +53,9 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
             const mintData = accountInfo.data;
             const decimals = mintData[44];
             let amount = ((coin.proportion /100) * Number(eventData.deposited) * Math.pow(10, decimals));
-            amount = Math.floor(amount);
+            amount = Math.round(amount * 100) / 100;
             console.log(amount,tokenAddress, "tokenAddress")
-            const { tx2 } = await swapToTkn(program, provider as Provider, mintkeypair, tokenAddress, amount);      // Two transaction for each coin
+            const { tx2 } = await swapToTkn(program, provider as Provider, mintkeypair, tokenAddress, amount, keypair);      // Two transaction for each coin
             console.log(tx2, "tx2")
             // transactions.push(tx1);
             transactions.push(tx2);
@@ -75,11 +69,13 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
             await record.save();
         };
 
-        const tx3 = await swapToTknEnd(program, mintkeypair, provider as Provider)
-        console.log(tx3, "tx3")
-        transactions.push(tx3)
-        const batches = await createTransactionBatches(transactions)
-        const results = await executeBulkSwap(batches, getKeypair, provider as Provider)
+        const {tipTx, versionedTransaction} = await swapToTknEnd(program, mintkeypair, provider as Provider, keypair)
+        console.log(tipTx, versionedTransaction, "tx3")
+        transactions.push(versionedTransaction);
+        transactions.push(tipTx);
+        await bundleAndSend(keypair,transactions, provider as Provider);
+        // const batches = await createTransactionBatches(transactions)
+        // const results = await executeBulkSwap(batches, getKeypair, provider as Provider)
         index.collectorDetail.forEach(async(item)=>{
             const adminReward = new AdminReward({
                 adminAddress: item.collector,
@@ -125,9 +121,12 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         const txn = await swapToSolEnd(program,mintkeypair,keypair.publicKey, provider as Provider)
         transactions.push(txn);
         
-        const batches = await createTransactionBatches(transactions)
-        console.log(provider)
-        const results = await executeBulkSwap(batches, getKeypair, provider as Provider)
+
+        await bundleAndSend(keypair, transactions, provider as Provider)
+        
+        // const batches = await createTransactionBatches(transactions)
+        // console.log(provider)
+        // const results = await executeBulkSwap(batches, getKeypair, provider as Provider)
     }catch(error){
         console.log("Error: EventQueueHandler.ts, handleSellIndexQueue()", error)
         throw error

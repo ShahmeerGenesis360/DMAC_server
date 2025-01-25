@@ -15,6 +15,7 @@ import {
   MessageV0,
   TransactionMessage,
 } from "@solana/web3.js";
+import { searcher, bundle } from "jito-ts";
 import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -24,6 +25,7 @@ import {
   createSyncNativeInstruction,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
+import {getRandomeTipAccountAddress} from '../utils/jito'
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 
@@ -305,7 +307,7 @@ export async function buyIndex(
   return txHash;
 }
 
-export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider) {
+export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair:Keypair) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -335,7 +337,7 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair, pro
 
 // Convert the message into a VersionedTransaction
     const versionedTransaction = new VersionedTransaction(messageV0);
-
+    versionedTransaction.sign([keypair])
 
     return versionedTransaction;
 }
@@ -364,7 +366,8 @@ export async function swapToTkn(
   provider: anchor.Provider,
   mintKeypair: Keypair,
   tokenPublicKey: PublicKey,
-  amountInSol: number
+  amountInSol: number,
+  keypair: Keypair,
 ): Promise<SwapResult> {
   const mintPublicKey = mintKeypair.publicKey;
 
@@ -429,13 +432,14 @@ export async function swapToTkn(
         getSwapToTknInfoPda(mintPublicKey),
         computeBudgetInstructions,
         swapInstruction,
-        addressLookupTableAddresses
+        addressLookupTableAddresses,
+        keypair,
     );
 
     return {tx2};
 }
 
-export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider) {
+export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -460,9 +464,31 @@ export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provi
     }).compileToV0Message();
 
 // Convert the message into a VersionedTransaction
-    const versionedTransaction = new VersionedTransaction(messageV0);
+  const versionedTransaction = new VersionedTransaction(messageV0);
+  versionedTransaction.sign([keypair])
 
-  return versionedTransaction;
+
+  const blockEngineUrl = "mainnet.block-engine.jito.wtf";
+  console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
+
+  const bundleTransactionLimit = parseInt("5", 10);
+  console.log(5, "bundle limit")
+  const searcherClient = searcher.searcherClient(blockEngineUrl);
+  const tipAccount = await getRandomeTipAccountAddress(searcherClient)
+  const tipIx = SystemProgram.transfer({
+    fromPubkey: keypair.publicKey,
+    toPubkey: tipAccount,
+    lamports: 100000,
+  });
+  const tipTx = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: keypair.publicKey,
+      recentBlockhash: blockhash.blockhash,
+      instructions: [tipIx],
+    }).compileToV0Message()
+  );
+  tipTx.sign([keypair])
+  return {tipTx,versionedTransaction};
 }
 
 export async function swapToSol(
@@ -588,6 +614,7 @@ export async function swapToSolEnd(
 
 // Convert the message into a VersionedTransaction
     const versionedTransaction = new VersionedTransaction(messageV0);
+  
   return versionedTransaction;
 }
 
