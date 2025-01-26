@@ -12,6 +12,7 @@ import {createTransactionBatches, executeBulkSwap} from "../utils/transaction"
 import { Record } from "../models/record";
 import {AdminReward} from "../models/adminReward";
 import {bundleAndSend} from "../utils/jito"
+import {createJitoBundle, sendJitoBundle} from "../utils/jitoRpc"
 
 const { PROGRAM_ID, NETWORK , RPC_URL, getKeypair, PRIVATE_KEY } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
@@ -32,8 +33,8 @@ async function handleCreateIndexQueue(eventData: any): Promise<void> {
 async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> {
     try{
         let transactions: VersionedTransaction[] = [];
-        const tx0 = await swapToTknStart(program, getKeypair,provider as Provider, keypair);           // first transaction
-        transactions.push(tx0)
+        const {versionedTransaction, tipTx} = await swapToTknStart(program, getKeypair,provider as Provider, keypair);           // first transaction
+        transactions.push(versionedTransaction)
         let indexPublicKey = eventData.index_mint.toString();
         indexPublicKey = `"${indexPublicKey}"`;
         const index = await GroupCoin.findOne({ mintPublickey:indexPublicKey });
@@ -43,7 +44,6 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
         const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
         // const privateKeyBuffer = bs58.decode(mintKeySecret);
         // const mintkeypair = Keypair.fromSecretKey(privateKeyBuffer);
-        // console.log(eventData.deposited)
         const deposited = parseFloat(eventData.deposited) / 1_000_000_000;
         console.log(deposited,eventData.deposited, "amount" )
 
@@ -69,13 +69,23 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
             await record.save();
         };
 
-        const {tipTx, versionedTransaction} = await swapToTknEnd(program, mintkeypair, provider as Provider, keypair)
-        console.log(tipTx, versionedTransaction, "tx3")
-        transactions.push(versionedTransaction);
-        transactions.push(tipTx);
-        await bundleAndSend(keypair,transactions, provider as Provider);
+        const {versionedTransaction3} = await swapToTknEnd(program, mintkeypair, provider as Provider, keypair)
+        console.log(versionedTransaction3, "tx3")
+        transactions.push(versionedTransaction3);
+        // transactions.push(tipTx);
+        // console.log(tip2Tx, "tip2")
+        const bundle =  await createJitoBundle(transactions, keypair);
+        console.log(bundle, "bundle")
+        const result = await sendJitoBundle(bundle)
+        console.log(result, "result")
+        // await bundleAndSend(keypair,transactions, provider as Provider);
+
+
+
         // const batches = await createTransactionBatches(transactions)
         // const results = await executeBulkSwap(batches, getKeypair, provider as Provider)
+
+
         index.collectorDetail.forEach(async(item)=>{
             const adminReward = new AdminReward({
                 adminAddress: item.collector,

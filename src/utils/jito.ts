@@ -71,7 +71,7 @@ export async function bundleAndSend(keypair: Keypair, transactions: VersionedTra
   const blockEngineUrl = BLOCK_ENGINE_URL || "";
   console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
 
-  const bundleTransactionLimit = parseInt(BUNDLE_TRANSACTION_LIMIT || "5", 10);
+  const bundleTransactionLimit = parseInt(BUNDLE_TRANSACTION_LIMIT || "4", 10);
   console.log(BUNDLE_TRANSACTION_LIMIT, "bundle limit")
   const searcherClient = searcher.searcherClient(blockEngineUrl);
 
@@ -85,7 +85,6 @@ export async function bundleAndSend(keypair: Keypair, transactions: VersionedTra
   // console.log(connection)
   // const blockHash = await connection.getLatestBlockhash();
 
-  console.log(1,2)
 
   // const tipIx = SystemProgram.transfer({
   //   fromPubkey: keypair.publicKey,
@@ -108,7 +107,7 @@ export async function bundleAndSend(keypair: Keypair, transactions: VersionedTra
   // );
   // tipTx.sign([keypair]);
   // console.log(tipTx, "tiptx")
-  console.log("hello")
+  console.log("before bundle")
   const jitoBundle = new bundle.Bundle(
     [...transactions],
     bundleTransactionLimit

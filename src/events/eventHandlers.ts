@@ -19,6 +19,7 @@ interface DmacCreateIndexEvent {
 
 async function handleDmacCreateIndexEvent(event: DmacCreateIndexEvent, slot: number): Promise<void> {
   const { index_mint, tokens, initial_supply } = event;
+  console.log("event found")
   console.log(`DmacCreateIndexEvent: Mint=${index_mint.toBase58()}, Tokens=${tokens}, Initial Supply=${initial_supply}`);
 
   // Add event to the Bull queue

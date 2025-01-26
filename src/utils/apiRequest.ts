@@ -309,12 +309,14 @@ export async function buyIndex(
 
 export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair:Keypair) {
   const mintPublicKey = mintKeypair.publicKey;
-
+  const getIndexInfo = getIndexInfoPda(mintPublicKey)
+  console.log(getIndexInfo)
+  
   const accounts = {
     programState: programState,
     admin: adminPublicKey,
     indexMint: mintPublicKey,
-    indexInfo: getIndexInfoPda(mintPublicKey),
+    indexInfo: getIndexInfo,
     swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
     systemProgram: SYSTEM_PROGRAM_ID,
   };
@@ -339,7 +341,28 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair, pro
     const versionedTransaction = new VersionedTransaction(messageV0);
     versionedTransaction.sign([keypair])
 
-    return versionedTransaction;
+    
+    const blockEngineUrl = "mainnet.block-engine.jito.wtf";
+  console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
+
+  const bundleTransactionLimit = parseInt("5", 10);
+  console.log(5, "bundle limit")
+  const searcherClient = searcher.searcherClient(blockEngineUrl);
+  const tipAccount = await getRandomeTipAccountAddress(searcherClient)
+  const tipIx = SystemProgram.transfer({
+    fromPubkey: keypair.publicKey,
+    toPubkey: tipAccount,
+    lamports: 100000,
+  });
+  const tipTx = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: keypair.publicKey,
+      recentBlockhash: blockhash.blockhash,
+      instructions: [tipIx],
+    }).compileToV0Message()
+  );
+  tipTx.sign([keypair])
+    return {versionedTransaction, tipTx};
 }
 
 export async function getTokenProgramId(
@@ -464,31 +487,10 @@ export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provi
     }).compileToV0Message();
 
 // Convert the message into a VersionedTransaction
-  const versionedTransaction = new VersionedTransaction(messageV0);
-  versionedTransaction.sign([keypair])
+  const versionedTransaction3 = new VersionedTransaction(messageV0);
+  versionedTransaction3.sign([keypair])
 
-
-  const blockEngineUrl = "mainnet.block-engine.jito.wtf";
-  console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
-
-  const bundleTransactionLimit = parseInt("5", 10);
-  console.log(5, "bundle limit")
-  const searcherClient = searcher.searcherClient(blockEngineUrl);
-  const tipAccount = await getRandomeTipAccountAddress(searcherClient)
-  const tipIx = SystemProgram.transfer({
-    fromPubkey: keypair.publicKey,
-    toPubkey: tipAccount,
-    lamports: 100000,
-  });
-  const tipTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: keypair.publicKey,
-      recentBlockhash: blockhash.blockhash,
-      instructions: [tipIx],
-    }).compileToV0Message()
-  );
-  tipTx.sign([keypair])
-  return {tipTx,versionedTransaction};
+  return {versionedTransaction3};
 }
 
 export async function swapToSol(
