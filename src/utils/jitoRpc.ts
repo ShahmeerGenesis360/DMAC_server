@@ -130,10 +130,13 @@ async function checkBundleStatus(bundleId: string): Promise<JitoBundleResponse |
       }
     );
 
+    console.log(response.data)
+
     if (response.data.error) {
       throw new Error(response.data.error.message);
     }
 
+    console.log(response.data.result.value[0])
     const result = response.data.result.value[0];
     if (!result) {
       console.log(`ℹ️ No status found for bundle ID: ${bundleId}`);

@@ -1,4 +1,5 @@
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
+import * as anchor from "@coral-xyz/anchor";
 
 interface BaseEvent {
   slot: number;
@@ -30,5 +31,6 @@ export interface DmacSellIndexEvent extends BaseEvent{
 
 export type SwapResult = {
   // tx1: VersionedTransaction;
-  tx2: VersionedTransaction;
+  transaction1: VersionedTransaction;
+  instructions: anchor.web3.TransactionInstruction[]
 };

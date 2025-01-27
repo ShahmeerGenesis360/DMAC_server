@@ -287,10 +287,10 @@ export const swapToToken = async (
     recentBlockhash: blockhash,
     instructions,
   }).compileToV0Message(addressLookupTableAccounts);
-  const transaction = new VersionedTransaction(messageV0);
-  transaction.sign([keypair])
+  const transaction1 = new VersionedTransaction(messageV0);
+  transaction1.sign([keypair])
     // const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
-    return transaction
+    return {transaction1, instructions}
   } catch (e) {
     console.log("Error: web3.ts, swapToToken()", e);
     throw new Error("Failure during simulation");

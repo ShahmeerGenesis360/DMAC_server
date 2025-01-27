@@ -362,7 +362,8 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair, pro
     }).compileToV0Message()
   );
   tipTx.sign([keypair])
-    return {versionedTransaction, tipTx};
+  const swapToTokenStartIns = transaction.instructions;
+  return { versionedTransaction, swapToTokenStartIns };
 }
 
 export async function getTokenProgramId(
@@ -412,6 +413,8 @@ export async function swapToTkn(
       false,
       tokenProgramId
     );
+
+    console.log(tokenAccount,tokenPublicKey, tokenProgramId, adminKeypair.publicKey.toString(),"tokenAccount")
     result = await getSwapIx(adminPublicKey, tokenAccount, quote);
 
     if ("error" in result) {
@@ -445,7 +448,7 @@ export async function swapToTkn(
     // const tx1 = new VersionedTransaction(messageV0)
    
 
-    const tx2 = await swapToToken(
+    const {transaction1, instructions} = await swapToToken(
         program,
         provider,
         adminKeypair,
@@ -459,10 +462,10 @@ export async function swapToTkn(
         keypair,
     );
 
-    return {tx2};
+    return {transaction1, instructions};
 }
 
-export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair) {
+export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -474,9 +477,14 @@ export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provi
     systemProgram: SYSTEM_PROGRAM_ID,
   };
   // console.log("accounts: ", accounts);
-
+  const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: true,
+  }));
   let transaction = await program.transaction.swapToTknEnd({
     accounts: accounts,
+    remainingAccounts: remainingAccounts,
     signers: [adminKeypair],
   });
   const blockhash = await provider.connection.getLatestBlockhash();

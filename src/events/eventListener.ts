@@ -29,7 +29,6 @@ async function listenForEvents(): Promise<void> {
   console.log('Listening for events...');
 
   // Listen to events from the program
-  program.addEventListener('dmacSwapToTokenStartEvent', handleDmacCreateIndexEvent);
   program.addEventListener('dmacCreateIndexEvent', handleDmacCreateIndexEvent);
   // program.addEventListener('DmacBuyIndexEvent', handleDmacBuyIndexEvent);
   program.addEventListener('dmacBuyIndexEvent', handleDmacBuyIndexEvent);

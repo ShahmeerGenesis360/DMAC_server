@@ -1,7 +1,7 @@
 import {config} from "../config/index"
 import { GroupCoin } from "../models/groupCoin";
 import {swapToTknStart, swapToTkn, swapToTknEnd, swapToSol, swapToSolEnd} from "../utils/apiRequest"
-import {VersionedTransaction, Keypair, PublicKey, Connection} from '@solana/web3.js'
+import {VersionedTransaction, Keypair, PublicKey, LAMPORTS_PER_SOL ,Connection, sendAndConfirmTransaction} from '@solana/web3.js'
 import {AnchorProvider, web3, Wallet } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
 import IDL from "../idl/idl.json"
@@ -12,7 +12,8 @@ import {createTransactionBatches, executeBulkSwap} from "../utils/transaction"
 import { Record } from "../models/record";
 import {AdminReward} from "../models/adminReward";
 import {bundleAndSend} from "../utils/jito"
-import {createJitoBundle, sendJitoBundle} from "../utils/jitoRpc"
+import {createJitoBundle, sendJitoBundle, checkBundleStatus} from "../utils/jitoRpc"
+import axios from "axios";
 
 const { PROGRAM_ID, NETWORK , RPC_URL, getKeypair, PRIVATE_KEY } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
@@ -30,11 +31,21 @@ async function handleCreateIndexQueue(eventData: any): Promise<void> {
     
 }
 
+async function fetchSolanaUsdPrice() {
+	const url = "https://api.coingecko.com/api/v3/coins/solana?tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false";
+	const response = await axios.get(url, {
+		headers: {
+			"x-cg-demo-api-key": "CG-1UEnGitQLXR2qVakGHeyrnKm",
+		},
+	});
+
+	return response?.data?.market_data?.current_price?.usd;
+}
+
 async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> {
     try{
         let transactions: VersionedTransaction[] = [];
-        const {versionedTransaction, tipTx} = await swapToTknStart(program, getKeypair,provider as Provider, keypair);           // first transaction
-        transactions.push(versionedTransaction)
+
         let indexPublicKey = eventData.index_mint.toString();
         indexPublicKey = `"${indexPublicKey}"`;
         const index = await GroupCoin.findOne({ mintPublickey:indexPublicKey });
@@ -42,23 +53,32 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
         mintKeySecret = mintKeySecret.slice(1, mintKeySecret.length - 1);
         const secretKeyUint8Array = new Uint8Array(Buffer.from(mintKeySecret, "base64"))
         const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
+
+        const {versionedTransaction, swapToTokenStartIns} = await swapToTknStart(program, mintkeypair,provider as Provider, keypair);           // first transaction
+        transactions.push(versionedTransaction)
+        // const txId = await connection.sendTransaction(versionedTransaction);
+        // console.log(`${txId}`, "hellooooo");
+        // eventData.deposited = "2"
         // const privateKeyBuffer = bs58.decode(mintKeySecret);
         // const mintkeypair = Keypair.fromSecretKey(privateKeyBuffer);
         const deposited = parseFloat(eventData.deposited) / 1_000_000_000;
         console.log(deposited,eventData.deposited, "amount" )
-
+        const solPrice = await fetchSolanaUsdPrice()
         for(const coin of index.coins){
             const tokenAddress = new PublicKey(coin.address);
             const accountInfo = await connection.getAccountInfo(tokenAddress);
             const mintData = accountInfo.data;
             const decimals = mintData[44];
-            let amount = ((coin.proportion /100) * Number(eventData.deposited) * Math.pow(10, decimals));
-            amount = Math.round(amount * 100) / 100;
+            let amount = ((coin.proportion /100) * Number(eventData.deposited) / solPrice) * LAMPORTS_PER_SOL;
+            console.log(amount, "before rounding")
+            amount = Math.round(amount);
             console.log(amount,tokenAddress, "tokenAddress")
-            const { tx2 } = await swapToTkn(program, provider as Provider, mintkeypair, tokenAddress, amount, keypair);      // Two transaction for each coin
-            console.log(tx2, "tx2")
+            const {transaction1, instructions} = await swapToTkn(program, provider as Provider, mintkeypair, tokenAddress, amount, keypair); 
+            // const txId = await connection.sendTransaction(tx2);
+            // console.log(`${txId}`, "hellooooo");
+            console.log(transaction1, "tx2")
             // transactions.push(tx1);
-            transactions.push(tx2);
+            transactions.push(transaction1);
             const record = new Record({
                 // user: eventData.userAddress,
                 type: "deposit", // Enum for transaction type
@@ -68,16 +88,25 @@ async function handleBuyIndexQueue(eventData: DmacBuyIndexEvent): Promise<void> 
             })
             await record.save();
         };
-
-        const {versionedTransaction3} = await swapToTknEnd(program, mintkeypair, provider as Provider, keypair)
+        const collectorPublicKeys = index.collectorDetail.map(
+            (collectorDetail) => new PublicKey(collectorDetail.collector)
+        );
+        const {versionedTransaction3} = await swapToTknEnd(program, mintkeypair, provider as Provider, keypair, collectorPublicKeys, swapToTokenStartIns, instructions)
         console.log(versionedTransaction3, "tx3")
+        // const txId2 = await connection.sendTransaction(versionedTransaction3);
+        // console.log(`${txId2}`, "hellooooo, ha");
         transactions.push(versionedTransaction3);
+
         // transactions.push(tipTx);
         // console.log(tip2Tx, "tip2")
-        const bundle =  await createJitoBundle(transactions, keypair);
-        console.log(bundle, "bundle")
-        const result = await sendJitoBundle(bundle)
-        console.log(result, "result")
+        // const bundle =  await createJitoBundle(transactions, keypair);
+        // console.log(bundle, "bundle")
+        // const result = await sendJitoBundle(bundle)
+        // const res = await checkBundleStatus(result)
+        // console.log(result, "result")
+        // console.log(res, "final res")
+
+
         // await bundleAndSend(keypair,transactions, provider as Provider);
 
 
@@ -117,6 +146,8 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         for(const coin of index.coins){
             const tokenAddress = new PublicKey(coin.address);
             const amount = ((coin.proportion /100) * Number(eventData.withdrawn)); 
+            const txn = await swapToSol(program, provider as Provider, mintkeypair, keypair.publicKey, tokenAddress, amount);
+            transactions.push(txn);
             const record = new Record({
                 user: eventData.userAddress,
                 type: "withdraw", // Enum for transaction type
@@ -125,8 +156,6 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
                 tokenAddress: coin.address,
             })
             await record.save();
-            const txn = await swapToSol(program, provider as Provider, mintkeypair, keypair.publicKey, tokenAddress, amount);
-            transactions.push(txn);
         };
         const txn = await swapToSolEnd(program,mintkeypair,keypair.publicKey, provider as Provider)
         transactions.push(txn);
