@@ -158,6 +158,145 @@ export const getSwapIx = async (
   }).then((response) => response.json());
 };
 
+// export const swapToSolana = async (
+//   program: Program,
+//   provider: anchor.Provider,
+//   adminKeypair: Keypair,
+//   programState: PublicKey,
+//   indexMint: PublicKey,
+//   indexInfo: PublicKey,
+//   swapToSolInfo: PublicKey,
+//   userPublicKey: PublicKey,
+//   computeBudgetPayloads: any[],
+//   swapPayload: any,
+//   addressLookupTableAddresses: string[]
+// ) => {
+//   try{
+//     let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+//     const programAuthority = findProgramAuthority(program.programId);
+//     const programWSOLAccount = findProgramWSOLAccount(program.programId);
+//     const adminPublicKey = adminKeypair.publicKey;
+//     const connection = provider.connection;
+  
+//     const serializedData = Buffer.from(swapInstruction.data);
+//     try {
+//       const deserializedData = borsh.deserialize(schema, SharedAccountsRouteArgs, serializedData);
+//       console.log("Deserialized Data:", deserializedData);
+//     } catch (error) {
+//       console.error("Failed to deserialize data:", error);
+//     }
+  
+//     const instructions = [
+//       ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+//       await program.methods
+//         .swapToSol(swapInstruction.data)
+//         .accounts({
+//           programAuthority: programAuthority,
+//           programWsolAccount: programWSOLAccount,
+//           userAccount: adminPublicKey,
+//           solMint: NATIVE_MINT,
+//           jupiterProgram: jupiterProgramId,
+//           tokenProgram: TOKEN_PROGRAM_ID,
+//           systemProgram: SystemProgram.programId,
+  
+//           programState: programState,
+//           indexMint: indexMint,
+//           indexInfo: indexInfo,
+//           swapToSolInfo: swapToSolInfo,
+//           user: userPublicKey,
+//           priceUpdate: PYTH_NETWORK_PROGRAM_ID,
+//         })
+//         .remainingAccounts(swapInstruction.keys)
+//         .instruction(),
+//     ];
+  
+//     const blockhash = (await connection.getLatestBlockhash()).blockhash;
+  
+//     // If you want, you can add more lookup table accounts here
+//     // console.log("addressLookupTableAddresses", addressLookupTableAddresses)
+//     const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+//       connection,
+//       addressLookupTableAddresses
+//     );
+//     const messageV0 = new TransactionMessage({
+//       payerKey: adminPublicKey,
+//       recentBlockhash: blockhash,
+//       instructions,
+//     }).compileToV0Message(addressLookupTableAccounts);
+//     const transaction = new VersionedTransaction(messageV0);
+//     return transaction;
+//   }
+//   catch(error){
+//     console.log("Error: web3.ts, SwapToSolana()",error)
+//     throw error
+//   }
+// };
+
+// export const swapToToken = async (
+//   program: Program,
+//   provider: anchor.Provider,
+//   adminKeypair: Keypair,
+//   programState: PublicKey,
+//   indexMint: PublicKey,
+//   indexInfo: PublicKey,
+//   swapToTknInfo: PublicKey,
+//   computeBudgetPayloads: any[],
+//   swapPayload: any,
+//   addressLookupTableAddresses: string[],
+//   keypair: Keypair
+// ) => {
+//   try{
+//   let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+//   const programAuthority = findProgramAuthority(program.programId);
+//   const programWSOLAccount = findProgramWSOLAccount(program.programId);
+//   const adminPublicKey = adminKeypair.publicKey;
+//   const connection = provider.connection;
+
+//   const instructions = [
+//     ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+//     await program.methods
+//       .swapToTkn(swapInstruction.data)
+//       .accounts({
+//         programAuthority: programAuthority,
+//         programWsolAccount: programWSOLAccount,
+//         userAccount: adminPublicKey,
+//         solMint: NATIVE_MINT,
+//         jupiterProgram: jupiterProgramId,
+//         tokenProgram: TOKEN_PROGRAM_ID,
+//         systemProgram: SystemProgram.programId,
+
+//         programState: programState,
+//         indexMint: indexMint,
+//         indexInfo: indexInfo,
+//         swapToTkn: swapToTknInfo,
+//       })
+//       .remainingAccounts(swapInstruction.keys)
+//       .instruction(),
+//   ];
+
+//   console.log(instructions, "swap to token instruction")
+//   const blockhash = (await connection.getLatestBlockhash()).blockhash;
+
+//   // If you want, you can add more lookup table accounts 
+//   const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+//     connection,
+//     addressLookupTableAddresses
+//   );
+//   const messageV0 = new TransactionMessage({
+//     payerKey: adminPublicKey,
+//     recentBlockhash: blockhash,
+//     instructions,
+//   }).compileToV0Message(addressLookupTableAccounts);
+//   const transaction1 = new VersionedTransaction(messageV0);
+//   transaction1.sign([keypair])
+//     // const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
+//     return {transaction1, instructions}
+//   } catch (e) {
+//     console.log("Error: web3.ts, swapToToken()", e);
+//     throw new Error("Failure during simulation");
+//   }
+// };
+
 export const swapToSolana = async (
   program: Program,
   provider: anchor.Provider,
@@ -169,66 +308,57 @@ export const swapToSolana = async (
   userPublicKey: PublicKey,
   computeBudgetPayloads: any[],
   swapPayload: any,
-  addressLookupTableAddresses: string[]
-) => {
-  try{
-    let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+  addressLookupTableAddresses: string[] // Include ALT addresses as a parameter
+): Promise<{ instructions: TransactionInstruction[]; addressLookupTableAccounts: AddressLookupTableAccount[] }> => {
+  try {
+    const connection = provider.connection;
     const programAuthority = findProgramAuthority(program.programId);
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
-    const adminPublicKey = adminKeypair.publicKey;
-    const connection = provider.connection;
-  
+
+    // Convert swapPayload to a TransactionInstruction
+    const swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+
+    // Serialize and optionally log the data
     const serializedData = Buffer.from(swapInstruction.data);
-    try {
-      const deserializedData = borsh.deserialize(schema, SharedAccountsRouteArgs, serializedData);
-      console.log("Deserialized Data:", deserializedData);
-    } catch (error) {
-      console.error("Failed to deserialize data:", error);
-    }
-  
-    const instructions = [
-      ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
-      await program.methods
-        .swapToSol(swapInstruction.data)
-        .accounts({
-          programAuthority: programAuthority,
-          programWsolAccount: programWSOLAccount,
-          userAccount: adminPublicKey,
-          solMint: NATIVE_MINT,
-          jupiterProgram: jupiterProgramId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-  
-          programState: programState,
-          indexMint: indexMint,
-          indexInfo: indexInfo,
-          swapToSolInfo: swapToSolInfo,
-          user: userPublicKey,
-          priceUpdate: PYTH_NETWORK_PROGRAM_ID,
-        })
-        .remainingAccounts(swapInstruction.keys)
-        .instruction(),
-    ];
-  
-    const blockhash = (await connection.getLatestBlockhash()).blockhash;
-  
-    // If you want, you can add more lookup table accounts here
-    // console.log("addressLookupTableAddresses", addressLookupTableAddresses)
+
+    // Fetch Address Lookup Table Accounts
     const addressLookupTableAccounts = await getAdressLookupTableAccounts(
       connection,
       addressLookupTableAddresses
     );
-    const messageV0 = new TransactionMessage({
-      payerKey: adminPublicKey,
-      recentBlockhash: blockhash,
-      instructions,
-    }).compileToV0Message(addressLookupTableAccounts);
-    const transaction = new VersionedTransaction(messageV0);
-    return transaction;
-  }
-  catch(error){
-    console.log("Error: web3.ts, SwapToSolana()",error)
-    throw error
+
+    // Generate the instructions
+    const computeBudgetInstructions = computeBudgetPayloads.map(
+      instructionDataToTransactionInstruction
+    );
+
+    const swapToSolInstruction = await program.methods
+      .swapToSol(swapInstruction.data)
+      .accounts({
+        programAuthority: programAuthority,
+        programWsolAccount: programWSOLAccount,
+        userAccount: adminKeypair.publicKey,
+        solMint: NATIVE_MINT,
+        jupiterProgram: jupiterProgramId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        programState: programState,
+        indexMint: indexMint,
+        indexInfo: indexInfo,
+        swapToSolInfo: swapToSolInfo,
+        user: userPublicKey,
+        priceUpdate: PYTH_NETWORK_PROGRAM_ID,
+      })
+      .remainingAccounts(swapInstruction.keys)
+      .instruction();
+
+    // Combine compute budget and swap instructions into a single array
+    const instructions = [...computeBudgetInstructions, swapToSolInstruction];
+
+    return { instructions, addressLookupTableAccounts };
+  } catch (error) {
+    console.error("Error: web3.ts, SwapToSolana()", error);
+    throw error;
   }
 };
 
@@ -242,19 +372,23 @@ export const swapToToken = async (
   swapToTknInfo: PublicKey,
   computeBudgetPayloads: any[],
   swapPayload: any,
-  addressLookupTableAddresses: string[],
-  keypair: Keypair
-) => {
-  try{
-  let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
-  const programAuthority = findProgramAuthority(program.programId);
-  const programWSOLAccount = findProgramWSOLAccount(program.programId);
-  const adminPublicKey = adminKeypair.publicKey;
-  const connection = provider.connection;
+  addressLookupTableAddresses: string[]
+): Promise<{ instructions: TransactionInstruction[] }> => {
+  try {
+    const swapInstruction =
+      instructionDataToTransactionInstruction(swapPayload);
+    const programAuthority = findProgramAuthority(program.programId);
+    const programWSOLAccount = findProgramWSOLAccount(program.programId);
+    const adminPublicKey = adminKeypair.publicKey;
+    const connection = provider.connection;
 
-  const instructions = [
-    ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
-    await program.methods
+    // Create compute budget instructions
+    const computeBudgetInstructions = computeBudgetPayloads.map(
+      instructionDataToTransactionInstruction
+    );
+
+    // Generate swapToTkn instructions
+    const swapToTknInstruction = await program.methods
       .swapToTkn(swapInstruction.data)
       .accounts({
         programAuthority: programAuthority,
@@ -264,39 +398,23 @@ export const swapToToken = async (
         jupiterProgram: jupiterProgramId,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-
         programState: programState,
         indexMint: indexMint,
         indexInfo: indexInfo,
         swapToTkn: swapToTknInfo,
       })
       .remainingAccounts(swapInstruction.keys)
-      .instruction(),
-  ];
+      .instruction();
 
-  console.log(instructions, "swap to token instruction")
-  const blockhash = (await connection.getLatestBlockhash()).blockhash;
+    // Combine all instructions into one array
+    const instructions = [...computeBudgetInstructions, swapToTknInstruction];
 
-  // If you want, you can add more lookup table accounts 
-  const addressLookupTableAccounts = await getAdressLookupTableAccounts(
-    connection,
-    addressLookupTableAddresses
-  );
-  const messageV0 = new TransactionMessage({
-    payerKey: adminPublicKey,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message(addressLookupTableAccounts);
-  const transaction1 = new VersionedTransaction(messageV0);
-  transaction1.sign([keypair])
-    // const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
-    return {transaction1, instructions}
-  } catch (e) {
-    console.log("Error: web3.ts, swapToToken()", e);
-    throw new Error("Failure during simulation");
+    return { instructions }; // Return the instructions
+  } catch (error) {
+    console.error("Error in swapToToken:", error);
+    throw new Error("Failure during swapToToken processing");
   }
 };
-
 
 export async function setResult(result: string, filePath: string) {
   console.log("Setting...");

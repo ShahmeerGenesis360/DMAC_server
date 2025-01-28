@@ -26,7 +26,7 @@ export interface DmacSellIndexEvent extends BaseEvent{
   index_mint: string;
   withdrawn: string;
   burned: string;
-  userAddress: string;
+  // userAddress: string;
 }
 
 export type SwapResult = {

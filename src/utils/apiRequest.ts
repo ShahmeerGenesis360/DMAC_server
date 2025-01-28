@@ -14,6 +14,7 @@ import {
   VersionedTransaction,
   MessageV0,
   TransactionMessage,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import { searcher, bundle } from "jito-ts";
 import {
@@ -307,11 +308,75 @@ export async function buyIndex(
   return txHash;
 }
 
-export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair:Keypair) {
-  const mintPublicKey = mintKeypair.publicKey;
-  const getIndexInfo = getIndexInfoPda(mintPublicKey)
-  console.log(getIndexInfo)
+// export async function swapToTknStart(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair:Keypair) {
+//   const mintPublicKey = mintKeypair.publicKey;
+//   const getIndexInfo = getIndexInfoPda(mintPublicKey)
+//   console.log(getIndexInfo)
   
+//   const accounts = {
+//     programState: programState,
+//     admin: adminPublicKey,
+//     indexMint: mintPublicKey,
+//     indexInfo: getIndexInfo,
+//     swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+//     systemProgram: SYSTEM_PROGRAM_ID,
+//   };
+//   // console.log("accounts: ", accounts);
+
+// //   let txHash = await program.rpc.swapToTknStart({
+// //     accounts: accounts,
+// //     signers: [adminKeypair],
+// //   });
+//     const transaction = program.transaction.swapToTknStart({
+//         accounts: accounts,
+//         signers: [adminKeypair],
+//     });
+//     const blockhash = await provider.connection.getLatestBlockhash();
+//     const messageV0 = new TransactionMessage({
+//     payerKey: adminPublicKey,
+//     recentBlockhash: blockhash.blockhash,
+//     instructions: transaction.instructions, // Use the instructions from the program RPC
+//     }).compileToV0Message();
+
+// // Convert the message into a VersionedTransaction
+//     const versionedTransaction = new VersionedTransaction(messageV0);
+//     versionedTransaction.sign([keypair])
+
+    
+//     const blockEngineUrl = "mainnet.block-engine.jito.wtf";
+//   console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
+
+//   const bundleTransactionLimit = parseInt("5", 10);
+//   console.log(5, "bundle limit")
+//   const searcherClient = searcher.searcherClient(blockEngineUrl);
+//   const tipAccount = await getRandomeTipAccountAddress(searcherClient)
+//   const tipIx = SystemProgram.transfer({
+//     fromPubkey: keypair.publicKey,
+//     toPubkey: tipAccount,
+//     lamports: 100000,
+//   });
+//   const tipTx = new VersionedTransaction(
+//     new TransactionMessage({
+//       payerKey: keypair.publicKey,
+//       recentBlockhash: blockhash.blockhash,
+//       instructions: [tipIx],
+//     }).compileToV0Message()
+//   );
+//   tipTx.sign([keypair])
+//   const swapToTokenStartIns = transaction.instructions;
+//   return { versionedTransaction, swapToTokenStartIns };
+// }
+
+export async function swapToTknStart(
+  program: Program,
+  mintKeypair: Keypair,
+  provider: anchor.Provider
+  // keypair: Keypair
+) {
+  const mintPublicKey = mintKeypair.publicKey;
+  const getIndexInfo = getIndexInfoPda(mintPublicKey);
+  console.log(getIndexInfo);
+
   const accounts = {
     programState: programState,
     admin: adminPublicKey,
@@ -322,48 +387,53 @@ export async function swapToTknStart(program: Program, mintKeypair: Keypair, pro
   };
   // console.log("accounts: ", accounts);
 
-//   let txHash = await program.rpc.swapToTknStart({
-//     accounts: accounts,
-//     signers: [adminKeypair],
-//   });
-    const transaction = program.transaction.swapToTknStart({
-        accounts: accounts,
-        signers: [adminKeypair],
-    });
-    const blockhash = await provider.connection.getLatestBlockhash();
-    const messageV0 = new TransactionMessage({
-    payerKey: adminPublicKey,
-    recentBlockhash: blockhash.blockhash,
-    instructions: transaction.instructions, // Use the instructions from the program RPC
-    }).compileToV0Message();
-
-// Convert the message into a VersionedTransaction
-    const versionedTransaction = new VersionedTransaction(messageV0);
-    versionedTransaction.sign([keypair])
-
-    
-    const blockEngineUrl = "mainnet.block-engine.jito.wtf";
-  console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
-
-  const bundleTransactionLimit = parseInt("5", 10);
-  console.log(5, "bundle limit")
-  const searcherClient = searcher.searcherClient(blockEngineUrl);
-  const tipAccount = await getRandomeTipAccountAddress(searcherClient)
-  const tipIx = SystemProgram.transfer({
-    fromPubkey: keypair.publicKey,
-    toPubkey: tipAccount,
-    lamports: 100000,
+  //   let txHash = await program.rpc.swapToTknStart({
+  //     accounts: accounts,
+  //     signers: [adminKeypair],
+  //   });
+  const transaction = program.transaction.swapToTknStart({
+    accounts: accounts,
+    signers: [adminKeypair],
   });
-  const tipTx = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: keypair.publicKey,
-      recentBlockhash: blockhash.blockhash,
-      instructions: [tipIx],
-    }).compileToV0Message()
-  );
-  tipTx.sign([keypair])
-  const swapToTokenStartIns = transaction.instructions;
-  return { versionedTransaction, swapToTokenStartIns };
+
+  // const programInstruction = transaction.instructions;
+  // const blockhash = await provider.connection.getLatestBlockhash();
+  // const messageV0 = new TransactionMessage({
+  //   payerKey: adminPublicKey,
+  //   recentBlockhash: blockhash.blockhash,
+  //   instructions: transaction.instructions, // Use the instructions from the program RPC
+  // }).compileToV0Message();
+
+  // // Convert the message into a VersionedTransaction
+  // const versionedTransaction = new VersionedTransaction(messageV0);
+  // versionedTransaction.sign([keypair]);
+
+  // const blockEngineUrl = "mainnet.block-engine.jito.wtf";
+  // console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
+
+  // const bundleTransactionLimit = parseInt("5", 10);
+  // console.log(5, "bundle limit");
+  // const searcherClient = searcher.searcherClient(blockEngineUrl);
+  // const tipAccount = await getRandomeTipAccountAddress(searcherClient);
+  // const tipIx = SystemProgram.transfer({
+  //   fromPubkey: keypair.publicKey,
+  //   toPubkey: tipAccount,
+  //   lamports: 100000,
+  // });
+  // const tipTx = new VersionedTransaction(
+  //   new TransactionMessage({
+  //     payerKey: keypair.publicKey,
+  //     recentBlockhash: blockhash.blockhash,
+  //     instructions: [tipIx],
+  //   }).compileToV0Message()
+  // );
+  // tipTx.sign([keypair]);
+  // const swapToTokenStartIns = transaction.instructions;
+  // return { versionedTransaction, swapToTokenStartIns };
+  return {
+    instructions: transaction.instructions, // The swapToTknStart instructions
+    // blockhash, // Blockhash needed to create VersionedTransaction
+  };
 }
 
 export async function getTokenProgramId(
@@ -385,41 +455,127 @@ export async function getTokenProgramId(
   }
 }
 
+// export async function swapToTkn(
+//   program: Program,
+//   provider: anchor.Provider,
+//   mintKeypair: Keypair,
+//   tokenPublicKey: PublicKey,
+//   amountInSol: number,
+//   keypair: Keypair,
+// ): Promise<SwapResult> {
+//   const mintPublicKey = mintKeypair.publicKey;
+
+//   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
+
+//   let result: any = null;
+
+//     // Find the best Quote from the Jupiter API
+//     const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
+//     console.log(quote, "quote")
+//     const tokenProgramId = await getTokenProgramId(
+//       provider.connection,
+//       tokenPublicKey
+//     );
+//     // Convert the Quote into a Swap instruction
+//     const tokenAccount = getAssociatedTokenAddressSync(
+//       tokenPublicKey,
+//       adminPublicKey,
+//       false,
+//       tokenProgramId
+//     );
+
+//     console.log(tokenAccount,tokenPublicKey, tokenProgramId, adminKeypair.publicKey.toString(),"tokenAccount")
+//     result = await getSwapIx(adminPublicKey, tokenAccount, quote);
+
+//     if ("error" in result) {
+//       console.log({ result });
+//       return result;
+//   }
+//   // We have now both the instruction and the lookup table addresses.
+//   const {
+//     computeBudgetInstructions, // The necessary instructions to setup the compute budget.
+//     swapInstruction, // The actual swap instruction.
+//     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
+//   } = result;
+
+//   // const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
+//   //   provider.connection,
+//   //   adminKeypair,
+//   //     SOL,
+//   //     adminPublicKey,
+//   //     false
+//   //   );
+    
+    
+//     // const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
+//     // const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
+   
+//     // const messageV0 = new TransactionMessage({
+//     //     payerKey: adminPublicKey,
+//     //     recentBlockhash: blockhash,
+//     //     instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
+//     //   }).compileToV0Message();
+//     // const tx1 = new VersionedTransaction(messageV0)
+   
+
+//     const {transaction1, instructions} = await swapToToken(
+//         program,
+//         provider,
+//         adminKeypair,
+//         programState,
+//         mintPublicKey,
+//         getIndexInfoPda(mintPublicKey),
+//         getSwapToTknInfoPda(mintPublicKey),
+//         computeBudgetInstructions,
+//         swapInstruction,
+//         addressLookupTableAddresses,
+//         keypair,
+//     );
+
+//     return {transaction1, instructions};
+// }
+
 export async function swapToTkn(
   program: Program,
   provider: anchor.Provider,
   mintKeypair: Keypair,
   tokenPublicKey: PublicKey,
-  amountInSol: number,
-  keypair: Keypair,
-): Promise<SwapResult> {
+  amountInSol: number
+  // keypair: Keypair
+): Promise<{ instructions: TransactionInstruction[] }> {
   const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
   let result: any = null;
 
-    // Find the best Quote from the Jupiter API
-    const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
-    console.log(quote, "quote")
-    const tokenProgramId = await getTokenProgramId(
-      provider.connection,
-      tokenPublicKey
-    );
-    // Convert the Quote into a Swap instruction
-    const tokenAccount = getAssociatedTokenAddressSync(
-      tokenPublicKey,
-      adminPublicKey,
-      false,
-      tokenProgramId
-    );
+  // Find the best Quote from the Jupiter API
+  const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
+  console.log(quote, "quote");
+  const tokenProgramId = await getTokenProgramId(
+    provider.connection,
+    tokenPublicKey
+  );
+  // Convert the Quote into a Swap instruction
+  const tokenAccount = getAssociatedTokenAddressSync(
+    tokenPublicKey,
+    adminPublicKey,
+    false,
+    tokenProgramId
+  );
 
-    console.log(tokenAccount,tokenPublicKey, tokenProgramId, adminKeypair.publicKey.toString(),"tokenAccount")
-    result = await getSwapIx(adminPublicKey, tokenAccount, quote);
+  console.log(
+    tokenAccount,
+    tokenPublicKey,
+    tokenProgramId,
+    adminKeypair.publicKey.toString(),
+    "tokenAccount"
+  );
+  result = await getSwapIx(adminPublicKey, tokenAccount, quote);
 
-    if ("error" in result) {
-      console.log({ result });
-      return result;
+  if ("error" in result) {
+    console.log({ result });
+    return result;
   }
   // We have now both the instruction and the lookup table addresses.
   const {
@@ -435,37 +591,77 @@ export async function swapToTkn(
   //     adminPublicKey,
   //     false
   //   );
-    
-    
-    // const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
-    // const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
-   
-    // const messageV0 = new TransactionMessage({
-    //     payerKey: adminPublicKey,
-    //     recentBlockhash: blockhash,
-    //     instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
-    //   }).compileToV0Message();
-    // const tx1 = new VersionedTransaction(messageV0)
-   
 
-    const {transaction1, instructions} = await swapToToken(
-        program,
-        provider,
-        adminKeypair,
-        programState,
-        mintPublicKey,
-        getIndexInfoPda(mintPublicKey),
-        getSwapToTknInfoPda(mintPublicKey),
-        computeBudgetInstructions,
-        swapInstruction,
-        addressLookupTableAddresses,
-        keypair,
-    );
+  // const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
+  // const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
 
-    return {transaction1, instructions};
+  // const messageV0 = new TransactionMessage({
+  //     payerKey: adminPublicKey,
+  //     recentBlockhash: blockhash,
+  //     instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
+  //   }).compileToV0Message();
+  // const tx1 = new VersionedTransaction(messageV0)
+
+  const { instructions: swapToTokenInstructions } = await swapToToken(
+    program,
+    provider,
+    adminKeypair,
+    programState,
+    mintPublicKey,
+    getIndexInfoPda(mintPublicKey),
+    getSwapToTknInfoPda(mintPublicKey),
+    computeBudgetInstructions,
+    swapInstruction,
+    addressLookupTableAddresses
+    // keypair
+  );
+
+  return { instructions: swapToTokenInstructions };
 }
 
-export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
+// export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
+//   const mintPublicKey = mintKeypair.publicKey;
+
+//   const accounts = {
+//     programState: programState,
+//     admin: adminPublicKey,
+//     indexMint: mintPublicKey,
+//     indexInfo: getIndexInfoPda(mintPublicKey),
+//     swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+//     systemProgram: SYSTEM_PROGRAM_ID,
+//   };
+//   // console.log("accounts: ", accounts);
+//   const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+//     pubkey,
+//     isSigner: false,
+//     isWritable: true,
+//   }));
+//   let transaction = await program.transaction.swapToTknEnd({
+//     accounts: accounts,
+//     remainingAccounts: remainingAccounts,
+//     signers: [adminKeypair],
+//   });
+//   const blockhash = await provider.connection.getLatestBlockhash();
+//     const messageV0 = new TransactionMessage({
+//     payerKey: adminPublicKey,
+//     recentBlockhash: blockhash.blockhash,
+//     instructions: transaction.instructions, // Use the instructions from the program RPC
+//     }).compileToV0Message();
+
+// // Convert the message into a VersionedTransaction
+//   const versionedTransaction3 = new VersionedTransaction(messageV0);
+//   versionedTransaction3.sign([keypair])
+
+//   return {versionedTransaction3};
+// }
+
+export async function swapToTknEnd(
+  program: Program,
+  mintKeypair: Keypair,
+  provider: anchor.Provider,
+  // keypair: Keypair,
+  collectorPublicKeys: PublicKey[]
+) {
   const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
@@ -482,23 +678,35 @@ export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provi
     isSigner: false,
     isWritable: true,
   }));
-  let transaction = await program.transaction.swapToTknEnd({
-    accounts: accounts,
-    remainingAccounts: remainingAccounts,
-    signers: [adminKeypair],
-  });
-  const blockhash = await provider.connection.getLatestBlockhash();
-    const messageV0 = new TransactionMessage({
-    payerKey: adminPublicKey,
-    recentBlockhash: blockhash.blockhash,
-    instructions: transaction.instructions, // Use the instructions from the program RPC
-    }).compileToV0Message();
+  // let transaction = await program.transaction.swapToTknEnd({
+  //   accounts: accounts,
+  //   remainingAccounts: remainingAccounts,
+  //   signers: [adminKeypair],
+  // });
+  // const blockhash = await provider.connection.getLatestBlockhash();
+  // const messageV0 = new TransactionMessage({
+  //   payerKey: adminPublicKey,
+  //   recentBlockhash: blockhash.blockhash,
+  //   instructions: transaction.instructions, // Use the instructions from the program RPC
+  // }).compileToV0Message();
 
-// Convert the message into a VersionedTransaction
-  const versionedTransaction3 = new VersionedTransaction(messageV0);
-  versionedTransaction3.sign([keypair])
+  // // Convert the message into a VersionedTransaction
+  // const versionedTransaction3 = new VersionedTransaction(messageV0);
+  // versionedTransaction3.sign([keypair]);
 
-  return {versionedTransaction3};
+  // Create the instructions for swapToTknEnd
+  const swapToTknEndInstruction = await program.methods
+    .swapToTknEnd()
+    .accounts(accounts)
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+
+  // Return instructions (no transactions created or signed here)
+  return {
+    instructions: [swapToTknEndInstruction],
+  };
+
+  // return { versionedTransaction3 };
 }
 
 export async function swapToSol(
@@ -516,6 +724,7 @@ export async function swapToSol(
   let result: any = null;
     // Find the best Quote from the Jupiter API
     const quote = await getQuote(tokenPublicKey, SOL, amountInToken);
+    console.log(quote, "quote")
 
     // Convert the Quote into a Swap instruction
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
@@ -533,7 +742,7 @@ export async function swapToSol(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  const txn = await swapToSolana(
+  const { instructions, addressLookupTableAccounts } = await swapToSolana(
     program,
     provider,
     adminKeypair,
@@ -546,8 +755,8 @@ export async function swapToSol(
     swapInstruction,
     addressLookupTableAddresses
   );
-
-  return txn;
+  console.log(instructions, "instructions")
+  return instructions;
 }
 
 export async function sellIndex(
@@ -593,39 +802,107 @@ export async function sellIndex(
   return txHash;
 }
 
-export async function swapToSolEnd(
-  program: Program, 
-  mintKeypair: Keypair, 
-  userPublicKey: PublicKey,
-  provider: anchor.Provider) {
-  const mintPublicKey = mintKeypair.publicKey;
+// export async function swapToSolEnd(
+//   program: Program, 
+//   mintKeypair: Keypair, 
+//   userPublicKey: PublicKey,
+//   provider: anchor.Provider,
+//   collectorPublicKeys: PublicKey[]
+//   ) {
+//   const mintPublicKey = mintKeypair.publicKey;
 
-  const accounts = {
-    programState: programState,
-    admin: adminPublicKey,
-    indexMint: mintPublicKey,
-    indexInfo: getIndexInfoPda(mintPublicKey),
-    swapToSolInfo: getSwapToSolInfoPda(mintPublicKey, userPublicKey),
-    userAccount: userPublicKey,
-    systemProgram: SYSTEM_PROGRAM_ID,
-  };
-  // console.log("accounts: ", accounts);
+//   const accounts = {
+//     programState: programState,
+//     admin: adminPublicKey,
+//     indexMint: mintPublicKey,
+//     indexInfo: getIndexInfoPda(mintPublicKey),
+//     swapToSolInfo: getSwapToSolInfoPda(mintPublicKey, userPublicKey),
+//     userAccount: userPublicKey,
+//     systemProgram: SYSTEM_PROGRAM_ID,
+//   };
+//   // console.log("accounts: ", accounts);
 
-  let transaction = await program.transaction.swapToSolEnd({
-    accounts: accounts,
-    signers: [adminKeypair],
-  });
-  const blockhash = await provider.connection.getLatestBlockhash();
-  const messageV0 = new TransactionMessage({
-    payerKey: adminPublicKey,
-    recentBlockhash: blockhash.blockhash,
-    instructions: transaction.instructions, // Use the instructions from the program RPC
-    }).compileToV0Message();
+//   const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+//     pubkey,
+//     isSigner: false,
+//     isWritable: true,
+//   }));
 
-// Convert the message into a VersionedTransaction
-    const versionedTransaction = new VersionedTransaction(messageV0);
+//   // let transaction = await program.transaction.swapToSolEnd({
+//   //   accounts: accounts,
+//   //   remainingAccounts: remainingAccounts,
+//   //   signers: [adminKeypair],
+//   // });
+
+//   let swapToSolEndInstruction = await program.methods
+//   .swapToSolEnd()
+//   .accounts(accounts)
+//   .remainingAccounts(remainingAccounts)
+//   .instruction();;
+
+//   return {
+//     instructions: [swapToSolEndInstruction],
+//   };
+// //   const blockhash = await provider.connection.getLatestBlockhash();
+// //   const messageV0 = new TransactionMessage({
+// //     payerKey: adminPublicKey,
+// //     recentBlockhash: blockhash.blockhash,
+// //     instructions: transaction.instructions, // Use the instructions from the program RPC
+// //     }).compileToV0Message();
+
+// // // Convert the message into a VersionedTransaction
+// //     const versionedTransaction = new VersionedTransaction(messageV0);
   
-  return versionedTransaction;
+// //   return versionedTransaction;
+// }
+
+export async function swapToSolEnd(
+  program: Program,
+  mintKeypair: Keypair,
+  userPublicKey: PublicKey,
+  provider: anchor.Provider,
+  collectorPublicKeys: PublicKey[]
+): Promise<{ instructions: TransactionInstruction[] }> {
+  try {
+    const mintPublicKey = mintKeypair.publicKey;
+
+    const accounts = {
+      programState: programState,
+      admin: adminPublicKey,
+      indexMint: mintPublicKey,
+      indexInfo: getIndexInfoPda(mintPublicKey),
+      swapToSolInfo: getSwapToSolInfoPda(mintPublicKey, userPublicKey),
+      userAccount: userPublicKey,
+      systemProgram: SYSTEM_PROGRAM_ID,
+    };
+
+    // Validate collectorPublicKeys
+    if (!collectorPublicKeys || collectorPublicKeys.length === 0) {
+      throw new Error("collectorPublicKeys must contain at least one public key.");
+    }
+
+    const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: true,
+    }));
+
+    // Generate the instruction
+    const swapToSolEndInstruction = await program.methods
+      .swapToSolEnd()
+      .accounts(accounts)
+      .remainingAccounts(remainingAccounts)
+      .instruction();
+
+      console.log(swapToSolEndInstruction, "swap to sol end instruction")
+
+    return {
+      instructions: [swapToSolEndInstruction],
+    };
+  } catch (error) {
+    console.error("Error generating swapToSolEnd instruction:", error);
+    throw error;
+  }
 }
 
 async function createAndGetTokenAccount(

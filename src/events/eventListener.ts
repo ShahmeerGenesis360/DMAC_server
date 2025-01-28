@@ -32,7 +32,6 @@ async function listenForEvents(): Promise<void> {
   program.addEventListener('dmacCreateIndexEvent', handleDmacCreateIndexEvent);
   // program.addEventListener('DmacBuyIndexEvent', handleDmacBuyIndexEvent);
   program.addEventListener('dmacBuyIndexEvent', handleDmacBuyIndexEvent);
-  program.addEventListener('DmacSellIndexEvent', handleDmacSellIndexEvent);
   program.addEventListener('dmacSellIndexEvent', handleDmacSellIndexEvent);
   // Add more event listeners as needed
 }

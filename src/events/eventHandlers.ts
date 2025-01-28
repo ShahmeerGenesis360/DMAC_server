@@ -51,7 +51,7 @@ async function handleDmacSellIndexEvent(event: any, slot: number, signature: str
     index_mint: (event.indexMint as PublicKey).toString(),
     withdrawn: (event.withdrawn as BN).toString(), 
     burned: (event.burned as BN).toString(),
-    userAddress: (event.__context.payer as PublicKey).toString(),
+    // userAddress: (event.__context.payer as PublicKey).toString(),
     slot,
     signature,
     timestamp: Date.now(),
