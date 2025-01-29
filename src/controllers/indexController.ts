@@ -52,7 +52,6 @@ const indexController = () => {
   };
   const getAllIndex = async (req: Request, res: Response) => {
     logger.info(`indexController get all index`);
-    console.log("getAllIndex");
     try {
       const allIndexs = await GroupCoin.find();
       //   if (allIndexs?.length) {
