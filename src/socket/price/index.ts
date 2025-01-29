@@ -1,6 +1,8 @@
 import { Server, Socket } from "socket.io";
 import { getChartData, getIndexId } from "./helper";
 import { RS } from "priceSocket";
+import { Record, IRecord } from "../../models/record";
+import { Types } from "mongoose";
 
 const priceSocketHandler = (io: Server, socket: Socket) => {
   socket.on(`index2`, (id) => {
@@ -42,11 +44,46 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
             }
           })
         );
+        // get 24 ht voulme of index
+        // Create start and end of today
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+        const tomorrow = new Date(today);
+        tomorrow.setUTCDate(today.getUTCDate() + 1); // Start of the next day
+
+        console.log("today ==> ", today); // Debugging
+        console.log("tomorrow ==> ", tomorrow); // Debugging
+        const twenty4hour = await Record.find({
+          indexCoin: new Types.ObjectId(id),
+          // createdAt: {
+          //   $gte: today, // Greater than or equal to today
+          //   $lt: tomorrow, // Less than tomorrow
+          // },
+        });
+        console.log("data on check ", twenty4hour?.length);
+        const totalValue = twenty4hour?.reduce(
+          (acc: number, item: IRecord) => acc + item.amount,  
+          0
+        );
+
+        // Use reduce to calculate the total amount for the interval
+        const { totalBuy, totalSell , totalVolume} = twenty4hour.reduce(
+          (acc, item) => {
+            if (item.type === "deposit") {
+              acc.totalBuy += 1; // Add amount or default to 0 if undefined
+            } else {
+              acc.totalSell += 1; // Add amount or default to 0 if undefined
+            }
+            acc.totalVolume += item.amount
+            return acc; // Ensure accumulator is returned
+          },
+          { totalBuy: 0, totalSell: 0, totalVolume:0 } // Correctly formatted initial accumulator
+        );
+        console.log("total 24 hr volume ", { totalValue, totalBuy, totalSell,totalVolume });
 
         const latestResponses = allResponses.flat();
 
         if (latestResponses?.length) {
-
           if (firstFetch) {
             socket.emit(`index2:${id}`, latestResponses); // Emit the initial 5 candles + latestResponses
             firstFetch = false; // Switch to subsequent updates

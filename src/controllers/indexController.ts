@@ -1,5 +1,5 @@
 import { sendErrorResponse, sendSuccessResponse } from "../utils/response";
-import { GroupCoin } from "../models/groupCoin";
+import { GroupCoin, ICollectorDetail } from "../models/groupCoin";
 import { Request, Response } from "express";
 import logger from "../utils/logger";
 import indexService from "../service/indexService";
@@ -13,16 +13,24 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, description, faq } = req.body;
+      const { name, coins, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetailApi, feeAmount} = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
+      let fee = feeAmount.slice(1, feeAmount.length - 1);
+      fee = parseFloat(feeAmount as string)
+      const processedDetails: ICollectorDetail[] = JSON.parse(collectorDetailApi)
+      
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
         imageUrl,
         description,
         faq: faqList,
+        mintKeySecret,
+        mintPublickey,
+        collectorDetail:processedDetails,
+        feeAmount: fee,
       });
 
       // Save to the database
@@ -44,7 +52,6 @@ const indexController = () => {
   };
   const getAllIndex = async (req: Request, res: Response) => {
     logger.info(`indexController get all index`);
-    console.log("getAllIndex");
     try {
       const allIndexs = await GroupCoin.find();
       //   if (allIndexs?.length) {
@@ -126,6 +133,7 @@ const indexController = () => {
             name: index.name,
             coins: index.coins,
             faq: index.faq,
+            mintKeypairSecret: index.mintKeySecret,
             description: index.description,
             visitCount: index.visitCount,
             imageUrl:index.imageUrl,

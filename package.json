@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npx ts-node-dev src/server",
+    "dev": "concurrently \"npm run dev-http\" \"npm run dev-event\"",
+    "dev-http": "npx ts-node-dev src/server.ts",
+    "dev-event": "npx ts-node-dev src/eventListener.ts",
     "start": "node build/server",
     "build": "npx tsc "
   },
@@ -14,30 +16,42 @@
   "description": "",
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/bs58": "^4.0.4",
     "@types/cors": "^2.8.13",
     "@types/express": "^4.17.17",
     "@types/multer": "^1.4.12",
     "@types/node-cron": "^3.0.11",
     "@types/winston": "^2.4.4",
-    "typescript": "^5.1.6"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
     "@everapi/freecurrencyapi-js": "^1.0.1",
+    "@project-serum/anchor": "^0.26.0",
+    "@solana/spl-token": "^0.4.9",
+    "@types/bull": "^3.15.9",
     "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.5",
     "axios": "^1.7.9",
+    "base58": "^2.0.1",
     "bcrypt": "^5.1.1",
+    "bs58": "^6.0.0",
+    "bull": "^4.16.5",
     "chalk": "4.1.0",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "helmet": "^8.0.0",
+    "jito-ts": "^4.1.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.9.1",
+    "moment": "^2.30.1",
+    "mongoose": "^8.9.4",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
+    "node-fetch": "^3.3.2",
     "socket.io": "^4.8.1",
-    "typescript": "^5.6.3",
     "winston": "^3.10.0"
   }
 }
