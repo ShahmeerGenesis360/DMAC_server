@@ -85,10 +85,10 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
 
         if (latestResponses?.length) {
           if (firstFetch) {
-            socket.emit(`index2:${id}`, latestResponses); // Emit the initial 5 candles + latestResponses
+            socket.emit(`index2:${id}`, {graph: latestResponses, info:{ totalValue, totalBuy, totalSell,totalVolume }}); // Emit the initial 5 candles + latestResponses
             firstFetch = false; // Switch to subsequent updates
           } else {
-            socket.emit(`index2:${id}`, latestResponses); // Emit the latest candle + average
+            socket.emit(`index2:${id}`, {graph: latestResponses, info:{ totalValue, totalBuy, totalSell,totalVolume } }); // Emit the latest candle + average
           }
         } else {
           socket.emit(`index2:${id}`, []);
