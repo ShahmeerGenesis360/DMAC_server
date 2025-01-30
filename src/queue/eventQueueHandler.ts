@@ -108,6 +108,8 @@ async function handleBuyIndexQueue(
         globalInstructions.push(...swapToTknIns);
         // transactions.push(tx1);
         //   transactions.push(transaction1);
+            
+        // here tokenPrice
       let fund = await getOrUpdateFund(index._id);
       const fee = parseFloat(eventData.deposited) * 0.01;
       const netDeposit = parseFloat(eventData.deposited) - fee;
@@ -224,8 +226,10 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
             const instructions = await swapToSol(program, provider as Provider, mintkeypair, keypair.publicKey, tokenAddress, amount);
             globalInstructions.push(...instructions);
             // transactions.push(txn);
+
+            // here tokenPrice
       let fund = await getOrUpdateFund(index._id);
-      const proportionalSharePercentage = eventData.withdrawn / fund.totalSupply;
+      const proportionalSharePercentage = Number(eventData?.withdrawn) / fund.totalSupply;
       const withdrawalAmount = proportionalSharePercentage * fund.indexWorth;
 
       // Apply the transaction fee (1% in this case)
@@ -233,7 +237,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
       const netWithdrawal = withdrawalAmount - fee;
 
       // Update the fund's total supply and worth after the withdrawal
-      fund.totalSupply -= eventData.withdrawn;
+      fund.totalSupply -= Number(eventData?.withdrawn);
       fund.indexWorth -= withdrawalAmount;
 
       // Update the fund in the database
