@@ -14,6 +14,8 @@ import {AdminReward} from "../models/adminReward";
 import {bundleAndSend} from "../utils/jito"
 import {createJitoBundle, sendJitoBundle, checkBundleStatus} from "../utils/jitoRpc"
 import axios from "axios";
+import { getOrUpdateFund } from "../utils";
+import { IndexFund } from "../models/indexFund";
 
 const { PROGRAM_ID, NETWORK , RPC_URL, getKeypair, PRIVATE_KEY } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
@@ -106,6 +108,23 @@ async function handleBuyIndexQueue(
         globalInstructions.push(...swapToTknIns);
         // transactions.push(tx1);
         //   transactions.push(transaction1);
+      let fund = await getOrUpdateFund(index._id);
+      const fee = parseFloat(eventData.deposited) * 0.01;
+      const netDeposit = parseFloat(eventData.deposited) - fee;
+
+      let tokensMinted;
+      if (fund.totalSupply === 0) {
+        tokensMinted = netDeposit;
+      } else {
+        tokensMinted = (netDeposit * fund.totalSupply) / fund.indexWorth;
+      }
+
+      fund.totalSupply += tokensMinted;
+      fund.indexWorth += netDeposit;
+      await IndexFund.findOneAndUpdate({ indexId: index._id }, fund, {
+        upsert: true,
+        new: true,
+      });
         const record = new Record({
           // user: eventData.userAddress,
           type: "deposit", // Enum for transaction type
@@ -205,6 +224,23 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
             const instructions = await swapToSol(program, provider as Provider, mintkeypair, keypair.publicKey, tokenAddress, amount);
             globalInstructions.push(...instructions);
             // transactions.push(txn);
+      let fund = await getOrUpdateFund(index._id);
+      const proportionalSharePercentage = 99 / fund.totalSupply;
+      const withdrawalAmount = proportionalSharePercentage * fund.indexWorth;
+
+      // Apply the transaction fee (1% in this case)
+      const fee = withdrawalAmount * 0.01; // 1% fee
+      const netWithdrawal = withdrawalAmount - fee;
+
+      // Update the fund's total supply and worth after the withdrawal
+      fund.totalSupply -= 99;
+      fund.indexWorth -= withdrawalAmount;
+
+      // Update the fund in the database
+      await IndexFund.findOneAndUpdate({ indexId: index._id }, fund, {
+        upsert: true,
+        new: true,
+      });
 
             const record = new Record({
                 // user: eventData.userAddress,

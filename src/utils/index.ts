@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import moment, { Moment } from "moment";
+import { IndexFund } from "../models/indexFund";
 
 const SECRET_KEY = process.env.JWT_SECRET || "your_jwt_secret";
 const JWT_SECRET = "your_secret_key_here"; // Replace with an environment variable in production
@@ -92,7 +93,7 @@ export const getAllIntervals = async (
   arr.push(moment(start).format("MMM DD, YYYY"));
   let prev: Moment = start;
 
-  for (let index = 1; index < intervals-1; index++) {
+  for (let index = 1; index < intervals - 1; index++) {
     const newDate: Moment = moment(prev).add(difference, "days");
     const formattedDate: string = newDate.format("MMM DD, YYYY");
     arr.push(formattedDate);
@@ -102,3 +103,12 @@ export const getAllIntervals = async (
   arr.push(moment(end).format("MMM DD, YYYY"));
   return arr;
 };
+
+export async function getOrUpdateFund(id: unknown) {
+  let fund = await IndexFund.findOne({ indexId: id });
+  console.log("fund", fund)
+  if (!fund) {
+    fund = new IndexFund({ indexId: id });
+  }
+  return fund;
+}
