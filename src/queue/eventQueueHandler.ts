@@ -225,7 +225,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
             globalInstructions.push(...instructions);
             // transactions.push(txn);
       let fund = await getOrUpdateFund(index._id);
-      const proportionalSharePercentage = 99 / fund.totalSupply;
+      const proportionalSharePercentage = eventData.withdrawn / fund.totalSupply;
       const withdrawalAmount = proportionalSharePercentage * fund.indexWorth;
 
       // Apply the transaction fee (1% in this case)
@@ -233,7 +233,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
       const netWithdrawal = withdrawalAmount - fee;
 
       // Update the fund's total supply and worth after the withdrawal
-      fund.totalSupply -= 99;
+      fund.totalSupply -= eventData.withdrawn;
       fund.indexWorth -= withdrawalAmount;
 
       // Update the fund in the database
