@@ -80,6 +80,9 @@ async function handleBuyIndexQueue(
       let globalInstructions: TransactionInstruction[] = [];
       // eventData.deposited = "2"
       let indexPublicKey = eventData.index_mint.toString();
+      // eventData.deposited = "2"
+
+
       indexPublicKey = `"${indexPublicKey}"`;
       const index = await GroupCoin.findOne({ mintPublickey: indexPublicKey });
       let mintKeySecret = index.mintKeySecret;
@@ -184,44 +187,44 @@ async function handleBuyIndexQueue(
         const versionedTransaction = new web3.VersionedTransaction(messageV0);
         versionedTransaction.sign([keypair]);
 
-        const bundle = await createJitoBundle([versionedTransaction], keypair)
-        const res = await sendJitoBundle(bundle);
-        console.log(res, "jito res")
+    //     const bundle = await createJitoBundle([versionedTransaction], keypair)
+    //     const res = await sendJitoBundle(bundle);
+    //     console.log(res, "jito res")
 
-        let bundleId = res; // Assuming the bundle ID is returned in the response
-        let status = await checkBundleStatus(res);
+    //     let bundleId = res; // Assuming the bundle ID is returned in the response
+    //     let status = await checkBundleStatus(res);
     
-    // Polling until bundle is confirmed (status is "landed" or another desired state)
-    while (status && status.status !== "Landed") {
-        console.log(`Waiting for confirmation for bundle ID: ${bundleId}`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        if(status.status == "Failed"){
-          bundleId = await sendJitoBundle(bundle);
-         }
-        status = await checkBundleStatus(bundleId);
-    }
+    // // Polling until bundle is confirmed (status is "landed" or another desired state)
+    // while (status && status.status !== "Landed") {
+    //     console.log(`Waiting for confirmation for bundle ID: ${bundleId}`);
+    //     await new Promise(resolve => setTimeout(resolve, 5000));
+    //     if(status.status == "Failed"){
+    //       bundleId = await sendJitoBundle(bundle);
+    //      }
+    //     status = await checkBundleStatus(bundleId);
+    // }
     
-    if (status && status.status === "Landed") {
-        console.log(`Bundle ID ${bundleId} confirmed!`);
-        await delay(10000);
-    } else {
-        console.log(`Failed to confirm bundle ID: ${bundleId}`);
-    }
+    // if (status && status.status === "Landed") {
+    //     console.log(`Bundle ID ${bundleId} confirmed!`);
+    //     await delay(10000);
+    // } else {
+    //     console.log(`Failed to confirm bundle ID: ${bundleId}`);
+    // }
 
 
         
         
         try {
-          // const txid = await connection.sendTransaction(versionedTransaction, { maxRetries: 2, skipPreflight: false, preflightCommitment: 'confirmed' });
-          // const confirmation = await connection.confirmTransaction(txid, 'finalized');
-          // if (confirmation.value.err) {
-          //     console.error(`Transaction failed: ${txid}`);
-          //     throw new Error(`Transaction failed: ${txid}`);
-          // } else {
-          //     console.log(`Transaction confirmed: ${txid}`);
-          // }
-          // console.log(`Transaction batch ${i + 1} sent successfully:`, txid);
-          // await delay(10000);
+          const txid = await connection.sendTransaction(versionedTransaction, { maxRetries: 2, skipPreflight: true, preflightCommitment: 'confirmed' });
+          const confirmation = await connection.confirmTransaction(txid, 'finalized');
+          if (confirmation.value.err) {
+              console.error(`Transaction failed: ${txid}`);
+              throw new Error(`Transaction failed: ${txid}`);
+          } else {
+              console.log(`Transaction confirmed: ${txid}`);
+          }
+          console.log(`Transaction batch ${i + 1} sent successfully:`, txid);
+          await delay(10000);
         } catch (err) {
           console.log(`Error sending transaction batch ${i + 1}:`, err);
           // Handle any failure to send the batch here
