@@ -19,6 +19,7 @@ export interface DmacBuyIndexEvent extends BaseEvent{
   index_mint: string;
   deposited: string;
   minted: string;
+  adminFee: string;
   // userAddress: string;
 }
 
@@ -26,6 +27,7 @@ export interface DmacSellIndexEvent extends BaseEvent{
   index_mint: string;
   withdrawn: string;
   burned: string;
+  adminFee: string;
   // userAddress: string;
 }
 

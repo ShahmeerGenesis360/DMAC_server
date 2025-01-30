@@ -31,8 +31,9 @@ async function handleDmacBuyIndexEvent(event: any, slot: number, signature: stri
   console.log(event)
   const eventData: DmacBuyIndexEvent =  {
     index_mint: (event.indexMint as PublicKey).toString(),
-    deposited: (event.deposited as BN).toString(), 
-    minted: (event.minted as BN).toString(),
+    deposited: (event.deposited as number).toString(), 
+    minted: (event.minted as number).toString(),
+    adminFee: (event.adminFeeBuy as BN).toString(),
     // userAddress: (event.__context.payer as PublicKey).toString(),
     slot,
     signature,
@@ -51,6 +52,7 @@ async function handleDmacSellIndexEvent(event: any, slot: number, signature: str
     index_mint: (event.indexMint as PublicKey).toString(),
     withdrawn: (event.withdrawn as BN).toString(), 
     burned: (event.burned as BN).toString(),
+    adminFee: (event.adminFeeSell as BN).toString(),
     // userAddress: (event.__context.payer as PublicKey).toString(),
     slot,
     signature,
