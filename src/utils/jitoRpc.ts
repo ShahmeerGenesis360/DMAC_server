@@ -58,7 +58,7 @@ async function createJitoBundle(transactions: Transaction[] | VersionedTransacti
     const tipInstruction = SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
       toPubkey: tipAccountPubkey,
-      lamports: 100000,
+      lamports: 1000000,
     });
 
     const latestBlockhash = await connection.getLatestBlockhash("finalized");

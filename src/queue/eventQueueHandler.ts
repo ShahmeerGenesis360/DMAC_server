@@ -80,7 +80,7 @@ async function handleBuyIndexQueue(
       let globalInstructions: TransactionInstruction[] = [];
       // eventData.deposited = "2"
       let indexPublicKey = eventData.index_mint.toString();
-      // eventData.deposited = "2"
+      eventData.deposited = "2"
 
 
       indexPublicKey = `"${indexPublicKey}"`;
@@ -98,6 +98,8 @@ async function handleBuyIndexQueue(
         provider as Provider
       );
 
+      console.log(swapToTknStartIns, "instruction stts")
+
       // const blockhash = await connection.getLatestBlockhash();
       // console.log(blockhash, "blockHash")
       // const messageV0 = new web3.TransactionMessage({
@@ -106,7 +108,7 @@ async function handleBuyIndexQueue(
       //     instructions: [...swapToTknStartIns],
       // }).compileToV0Message();
 
-      globalInstructions.push(...swapToTknStartIns);
+      // globalInstructions.push(...swapToTknStartIns);
       const deposited = parseFloat(eventData.deposited) / 1_000_000_000;
       console.log(deposited, eventData.deposited, "amount");
       const solPrice = await fetchSolanaUsdPrice();
@@ -161,17 +163,57 @@ async function handleBuyIndexQueue(
   
       globalInstructions.push(...swapToTknEndIns);
 
-
       const MAX_INSTRUCTIONS = 3;  // Adjust based on Solana's block size
       const instructionBatches = [];
-       
+      let versionedTransactions: VersionedTransaction[] = [];
+      for(let i = 0;i<globalInstructions.length;i++){
+        const blockhash = await connection.getLatestBlockhash();
+        const messageV0 = new web3.TransactionMessage({
+          payerKey: keypair.publicKey,
+          recentBlockhash: blockhash.blockhash,
+          instructions: [globalInstructions[i]],
+        }).compileToV0Message();
+        const versionedTransaction = new web3.VersionedTransaction(messageV0);
+        versionedTransaction.sign([keypair]);
+        // console.log(versionedTransaction, "versionedTransaction")
+        versionedTransactions.push(versionedTransaction)
+      }
+      console.log(versionedTransactions)
+      let batchList = []
       
-      
+      for (let i = 0; i < versionedTransactions.length; i += MAX_INSTRUCTIONS) {
+        batchList.push(versionedTransactions.slice(i, i + MAX_INSTRUCTIONS));
+      }
+      // console.log(batchList, "BATCH LIST")
+    //   for(let i =0;i<batchList.length;i++){
+    //     const bundle = await createJitoBundle( batchList[i], keypair)
+    //     console.log(bundle, "Bundle1")
+    //     const res = await sendJitoBundle(bundle);
+    //     console.log(res, "jito res")
+
+    //     let bundleId = res; // Assuming the bundle ID is returned in the response
+    //     let status = await checkBundleStatus(res);
+    
+    // // Polling until bundle is confirmed (status is "landed" or another desired state)
+    // while (status && status.status != "Landed") {
+    //     console.log(`Waiting for confirmation for bundle ID: ${bundleId}`);
+    //     await new Promise(resolve => setTimeout(resolve, 5000));
+    //     status = await checkBundleStatus(bundleId);
+    // }
+    
+    // if (status && status.status === "Landed") {
+    //     console.log(`Bundle ID ${bundleId} confirmed!`);
+    //     await delay(10000);
+    // } else {
+    //     console.log(`Failed to confirm bundle ID: ${bundleId}`);
+    // }
+
+    //   }
 
       while (globalInstructions.length > 0) {
         instructionBatches.push(globalInstructions.splice(0, MAX_INSTRUCTIONS));  // Divide into batches
       }
-  
+      // console.log(instructionBatches, "Instruction batches")
       // Send each batch as a separate transaction
       for (let i = 0; i < instructionBatches.length; i++) {
         const getConnection = connections[i%3]
@@ -187,7 +229,8 @@ async function handleBuyIndexQueue(
         const versionedTransaction = new web3.VersionedTransaction(messageV0);
         versionedTransaction.sign([keypair]);
 
-    //     const bundle = await createJitoBundle([versionedTransaction], keypair)
+        // const bundle = await createJitoBundle([versionedTransaction], keypair)
+        // console.log(bundle, "Bundle")
     //     const res = await sendJitoBundle(bundle);
     //     console.log(res, "jito res")
 
@@ -195,12 +238,9 @@ async function handleBuyIndexQueue(
     //     let status = await checkBundleStatus(res);
     
     // // Polling until bundle is confirmed (status is "landed" or another desired state)
-    // while (status && status.status !== "Landed") {
+    // while (status && status.status != "Landed") {
     //     console.log(`Waiting for confirmation for bundle ID: ${bundleId}`);
     //     await new Promise(resolve => setTimeout(resolve, 5000));
-    //     if(status.status == "Failed"){
-    //       bundleId = await sendJitoBundle(bundle);
-    //      }
     //     status = await checkBundleStatus(bundleId);
     // }
     
