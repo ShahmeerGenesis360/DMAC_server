@@ -13,7 +13,7 @@ const indexController = () => {
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetailApi, feeAmount} = req.body;
+      const { name, coins, category, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetailApi, feeAmount} = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
@@ -31,6 +31,7 @@ const indexController = () => {
         mintPublickey,
         collectorDetail:processedDetails,
         feeAmount: fee,
+        category,
       });
 
       // Save to the database
@@ -141,6 +142,8 @@ const indexController = () => {
             a1D: averagePercentage24h,
             a1W: averagePercentage7d,
             price,
+            category: index.category,
+            collectorDetail: index.collectorDetail,
           };
         })
       );
@@ -201,11 +204,14 @@ const indexController = () => {
   const updateIndex = async (req: Request, res: Response) => {
     logger.info(`indexController update an index`);
     try {
-      const { id, name, coins, description, faq, imageUrl } = req.body;
+      const { id, name, coins, description, faq, imageUrl, category, collectorDetails, } = req.body;
   
       // Parse coins and FAQ
       const coinList = coins ? JSON.parse(coins) : [];
       const faqList = faq ? JSON.parse(faq) : [];
+      const collectorDetailsList = collectorDetails
+        ? JSON.parse(collectorDetails)
+        : [];
   
       // Find the existing GroupCoin by ID
       const existingGroupCoin = await GroupCoin.findById(id);
@@ -228,10 +234,12 @@ const indexController = () => {
   
       // Update the GroupCoin fields
       existingGroupCoin.name = name || existingGroupCoin.name;
+      existingGroupCoin.category = category || existingGroupCoin.category;
       existingGroupCoin.coins = coinList.length > 0 ? coinList : existingGroupCoin.coins;
       existingGroupCoin.imageUrl = updatedImageUrl;
       existingGroupCoin.description = description || existingGroupCoin.description;
       existingGroupCoin.faq = faqList.length > 0 ? faqList : existingGroupCoin.faq;
+      existingGroupCoin.collectorDetail = collectorDetailsList || existingGroupCoin.collectorDetail;
   
       // Save the updated document
       const updatedGroupCoin = await existingGroupCoin.save();

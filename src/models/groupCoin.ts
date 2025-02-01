@@ -29,6 +29,7 @@ export interface IGroupCoin extends Document {
   mintPublickey: string;
   collectorDetail: Array<ICollectorDetail>;
   feeAmount: string;
+  category: string;
 }
 
 // Define the ICoin schema
@@ -69,7 +70,8 @@ const groupCoinSchema = new Schema<IGroupCoin>(
     mintKeySecret: {type: String, required: true},
     mintPublickey: {type: String, required:true},
     collectorDetail: { type: [collectorDetailSchema],  },
-    feeAmount: {type: String, required: true}
+    feeAmount: {type: String, required: true},
+    category: {type: String, required: true}
   },
   { timestamps: true }
 );
