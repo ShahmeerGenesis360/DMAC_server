@@ -29,7 +29,6 @@ async function updateGroupCoinHistory(): Promise<void> {
       );
 
       let marketBasedIndexPrice = coinPrices.reduce((sum, coin) => {
-        console.log(coin.price, "coin.coinName", coin.name, coinPrices);
         return (
           sum + coin.price * (indexFund.totalSupply * (coin.proportion / 100))
         );
