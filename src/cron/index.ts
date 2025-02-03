@@ -22,15 +22,18 @@ async function updateGroupCoinHistory(): Promise<void> {
           );
           return {
             price: parseFloat((coinPrice || 0).toFixed(2)),
-            proportion: coin.proportion,
+            proportion: Number(coin.proportion) / 100,
             name: coin.coinName,
           };
         })
       );
 
       let marketBasedIndexPrice = coinPrices.reduce((sum, coin) => {
+        console.log("price", coin.price, coin.proportion);
+        const totalAllocation = indexFund.totalSupply * coin.proportion;
+        console.log("totalAllocation", totalAllocation, totalAllocation / coin.price);
         return (
-          sum + coin.price * (indexFund.totalSupply * (coin.proportion / 100))
+          sum + (totalAllocation * coin.price)
         );
       }, 0);
 

@@ -128,6 +128,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
               socket.emit(`index2:${id}`, {
                 graph: latestResponses,
                 info: {
+                  id,
                   totalValue,
                   totalBuy,
                   totalSell,
@@ -146,6 +147,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
               socket.emit(`index2:${id}`, {
                 graph: latestResponses,
                 info: {
+                  id,
                   totalValue,
                   totalBuy,
                   totalSell,
