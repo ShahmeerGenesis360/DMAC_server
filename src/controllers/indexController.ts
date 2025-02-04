@@ -7,20 +7,40 @@ import {
   calculateAveragePercentage,
   calculatePercentage,
   getChartData,
+  getIndexId,
 } from "../socket/price/helper";
+import { GroupCoinHistory } from "../models/groupCoinHistory";
+import moment, { Moment } from "moment";
+import { getAllIntervals, getOrUpdateFund } from "../utils";
+import { Record, IRecord } from "../models/record";
+import { Types } from "mongoose";
+
 const indexController = () => {
   const groupIndexService = indexService();
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { name, coins, category, description, faq, mintPublickey, mintKeySecret, tokenAllocations, collectorDetailApi, feeAmount} = req.body;
+      const {
+        name,
+        coins,
+        category,
+        description,
+        faq,
+        mintPublickey,
+        mintKeySecret,
+        tokenAllocations,
+        collectorDetailApi,
+        feeAmount,
+        symbol
+      } = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
       const faqList = JSON.parse(faq);
       let fee = feeAmount.slice(1, feeAmount.length - 1);
-      fee = parseFloat(feeAmount as string)
-      const processedDetails: ICollectorDetail[] = JSON.parse(collectorDetailApi)
-      
+      fee = parseFloat(feeAmount as string);
+      const processedDetails: ICollectorDetail[] =
+        JSON.parse(collectorDetailApi);
+
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -29,9 +49,10 @@ const indexController = () => {
         faq: faqList,
         mintKeySecret,
         mintPublickey,
-        collectorDetail:processedDetails,
+        collectorDetail: processedDetails,
         feeAmount: fee,
         category,
+        symbol
       });
 
       // Save to the database
@@ -137,7 +158,7 @@ const indexController = () => {
             mintKeypairSecret: index.mintKeySecret,
             description: index.description,
             visitCount: index.visitCount,
-            imageUrl:index.imageUrl,
+            imageUrl: index.imageUrl,
             a1H: averagePercentage1h,
             a1D: averagePercentage24h,
             a1W: averagePercentage7d,
@@ -201,18 +222,157 @@ const indexController = () => {
     }
   };
 
+  const getTimeFrame = async (time: "1D" | "1W" | "1M" | "3M") => {
+    const end: Moment = moment();
+    let start: Moment;
+    let allIntervals: string[];
+
+    switch (time) {
+      case "1D":
+        start = moment(end).subtract(30, "days");
+        allIntervals = await getAllIntervals(start, end, 31);
+        return { start, end, allIntervals };
+
+      case "1W":
+        start = moment(end).subtract(35, "days");
+        allIntervals = await getAllIntervals(start, end, 5);
+        return { start, end, allIntervals };
+
+      case "1M":
+        start = moment(end).subtract(6 * 30, "days");
+        allIntervals = await getAllIntervals(start, end, 6);
+        return { start, end, allIntervals };
+
+      case "3M":
+        start = moment(end).subtract(4 * 90, "days");
+        allIntervals = await getAllIntervals(start, end, 6);
+        return { start, end, allIntervals };
+
+      default:
+        start = moment(end).subtract(30, "days");
+        allIntervals = await getAllIntervals(start, end, 31);
+        return { start, end, allIntervals };
+    }
+  };
+
+  const getIndexGraph = async (req: Request, res: Response) => {
+    logger.info(`indexController index Graph`);
+    try {
+      const { time } = req.body;
+      const { id } = req.params;
+      // Parse coins and FAQ
+      const groupcoin = await getIndexId(id);
+      if (groupcoin === undefined) return;
+      const { allIntervals, start, end } = await getTimeFrame(time);
+      const viewsArray = [];
+      for (let index = 0; index < allIntervals.length; index++) {
+        const results = await GroupCoinHistory.find({
+          indexId: id,
+          createdAt: {
+            $gt: allIntervals[index],
+            $lt: allIntervals[index + 1] || end,
+          },
+        });
+        const averageAmount =
+          results.length > 0 ? results[results.length - 1].price : 0;
+
+        viewsArray.push({
+          startDate: allIntervals[index]?.split(",")[0],
+          totalAmount: averageAmount,
+        });
+      }
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+      const tomorrow = new Date(today);
+      tomorrow.setUTCDate(today.getUTCDate() + 1); // Start of the next day
+
+      console.log("today ==> ", today); // Debugging
+      console.log("tomorrow ==> ", tomorrow); // Debugging
+      const twenty4hour = await Record.find({
+        indexCoin: new Types.ObjectId(id),
+        // createdAt: {
+        //   $gte: today, // Greater than or equal to today
+        //   $lt: tomorrow, // Less than tomorrow
+        // },
+      });
+      console.log("data on check ", twenty4hour?.length);
+      const totalValue = twenty4hour?.reduce(
+        (acc: number, item: IRecord) => acc + item.amount,
+        0
+      );
+
+      // Use reduce to calculate the total amount for the interval
+      const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
+        (acc, item) => {
+          if (item.type === "deposit") {
+            acc.totalBuy += 1; // Add amount or default to 0 if undefined
+          } else {
+            acc.totalSell += 1; // Add amount or default to 0 if undefined
+          }
+          acc.totalVolume += item.amount;
+          return acc; // Ensure accumulator is returned
+        },
+        { totalBuy: 0, totalSell: 0, totalVolume: 0 } // Correctly formatted initial accumulator
+      );
+      console.log("total 24 hr volume ", {
+        totalValue,
+        totalBuy,
+        totalSell,
+        totalVolume,
+      });
+      const fund = await getOrUpdateFund(id);
+
+      sendSuccessResponse({
+        res,
+        data: {
+          chart: viewsArray,
+          info: {
+            id,
+            totalValue,
+            totalBuy,
+            totalSell,
+            totalVolume,
+            price:
+              fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+            totalSupply: fund.totalSupply,
+            indexWorth: fund.indexWorth,
+          },
+        },
+        message: "Index Graph successfull",
+      });
+    } catch (error) {
+      logger.error(`Error while index Graph an index ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+
   const updateIndex = async (req: Request, res: Response) => {
     logger.info(`indexController update an index`);
     try {
-      const { id, name, coins, description, faq, imageUrl, category, collectorDetails, } = req.body;
-  
+      const {
+        id,
+        name,
+        coins,
+        description,
+        faq,
+        imageUrl,
+        category,
+        collectorDetails,
+        symbol
+      } = req.body;
+
       // Parse coins and FAQ
       const coinList = coins ? JSON.parse(coins) : [];
       const faqList = faq ? JSON.parse(faq) : [];
       const collectorDetailsList = collectorDetails
         ? JSON.parse(collectorDetails)
         : [];
-  
+
       // Find the existing GroupCoin by ID
       const existingGroupCoin = await GroupCoin.findById(id);
       if (!existingGroupCoin) {
@@ -223,7 +383,7 @@ const indexController = () => {
           statusCode: 404,
         });
       }
-  
+
       // Handle the image (uploaded file or link)
       let updatedImageUrl = existingGroupCoin.imageUrl; // Default to the current image URL
       if (req?.file?.filename) {
@@ -231,19 +391,24 @@ const indexController = () => {
       } else if (imageUrl) {
         updatedImageUrl = imageUrl; // New image link
       }
-  
+
       // Update the GroupCoin fields
       existingGroupCoin.name = name || existingGroupCoin.name;
       existingGroupCoin.category = category || existingGroupCoin.category;
-      existingGroupCoin.coins = coinList.length > 0 ? coinList : existingGroupCoin.coins;
+      existingGroupCoin.symbol = symbol || existingGroupCoin.symbol;
+      existingGroupCoin.coins =
+        coinList.length > 0 ? coinList : existingGroupCoin.coins;
       existingGroupCoin.imageUrl = updatedImageUrl;
-      existingGroupCoin.description = description || existingGroupCoin.description;
-      existingGroupCoin.faq = faqList.length > 0 ? faqList : existingGroupCoin.faq;
-      existingGroupCoin.collectorDetail = collectorDetailsList || existingGroupCoin.collectorDetail;
-  
+      existingGroupCoin.description =
+        description || existingGroupCoin.description;
+      existingGroupCoin.faq =
+        faqList.length > 0 ? faqList : existingGroupCoin.faq;
+      existingGroupCoin.collectorDetail =
+        collectorDetailsList || existingGroupCoin.collectorDetail;
+
       // Save the updated document
       const updatedGroupCoin = await existingGroupCoin.save();
-  
+
       sendSuccessResponse({
         res,
         data: updatedGroupCoin,
@@ -259,12 +424,13 @@ const indexController = () => {
       });
     }
   };
-  
+
   return {
     getAllIndex,
     createIndex,
     getIndexById,
-    updateIndex
+    updateIndex,
+    getIndexGraph
   };
 };
 
