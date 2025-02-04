@@ -8,6 +8,7 @@ const indexRouter = Router();
 
 indexRouter.get("/", index.getAllIndex);
 indexRouter.get("/:id", index.getIndexById);
+indexRouter.post("/details/:id", index.getIndexGraph);
 indexRouter.post("/", upload.single("file"), index.createIndex);
 indexRouter.put("/:id", upload.single("file"), index.updateIndex);
 
