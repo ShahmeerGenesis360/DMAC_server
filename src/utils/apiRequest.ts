@@ -43,6 +43,7 @@ import {
   swapToSolana,
   swapToToken,
 } from "./web3";
+import { connection } from "mongoose";
 // import { collect } from "./test";
 
 // import {
@@ -391,10 +392,20 @@ export async function swapToTknStart(
   //     accounts: accounts,
   //     signers: [adminKeypair],
   //   });
-  const transaction = program.transaction.swapToTknStart({
+  let transaction = await program.rpc.swapToTknStart({
     accounts: accounts,
     signers: [adminKeypair],
   });
+
+  const confirmation = await provider.connection.confirmTransaction(transaction,"finalized")
+  
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${transaction}`);
+    transaction = await swapToTknStart(program, mintKeypair, provider)
+  } else {
+    console.log(`Transaction confirmed: ${transaction}`);
+    return transaction; // Exit the retry loop if successful
+  }
 
   // const programInstruction = transaction.instructions;
   // const blockhash = await provider.connection.getLatestBlockhash();
@@ -430,11 +441,42 @@ export async function swapToTknStart(
   // tipTx.sign([keypair]);
   // const swapToTokenStartIns = transaction.instructions;
   // return { versionedTransaction, swapToTokenStartIns };
-  return {
-    instructions: transaction.instructions, // The swapToTknStart instructions
+  return transaction
     // blockhash, // Blockhash needed to create VersionedTransaction
-  };
+
 }
+
+export async function createWsol(program: Program, mintKeypair: Keypair, keypair: Keypair) {
+  const mintPublicKey = mintKeypair.publicKey;
+
+  const wsolTokenAccount = getAssociatedTokenAddressSync(
+    SOL_MINT,
+    adminPublicKey,
+    false,
+    TOKEN_PROGRAM_ID
+  );
+
+  const accounts = {
+    programState: programState,
+    admin: adminPublicKey,
+    indexMint: mintPublicKey,
+    swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+    wsolMint: SOL_MINT,
+    wsolTokenAccount: wsolTokenAccount,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    systemProgram: SYSTEM_PROGRAM_ID,
+  };
+  // console.log("accounts: ", accounts);
+
+  let transaction = await program.transaction.createWsol({
+    accounts: accounts,
+    signers: [keypair],
+  });
+
+  return transaction.instructions;
+}
+
 
 export async function getTokenProgramId(
   connection: Connection,
@@ -542,7 +584,7 @@ export async function swapToTkn(
   tokenPublicKey: PublicKey,
   amountInSol: number
   // keypair: Keypair
-): Promise<{ instructions: TransactionInstruction[] }> {
+): Promise<{ txID: string }> {
   const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
@@ -551,7 +593,7 @@ export async function swapToTkn(
 
   // Find the best Quote from the Jupiter API
   const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
-  console.log(quote, "quote");
+  console.log(quote, "quote")
   const tokenProgramId = await getTokenProgramId(
     provider.connection,
     tokenPublicKey
@@ -602,7 +644,7 @@ export async function swapToTkn(
   //   }).compileToV0Message();
   // const tx1 = new VersionedTransaction(messageV0)
 
-  const { instructions: swapToTokenInstructions } = await swapToToken(
+  const  txID = await swapToToken(
     program,
     provider,
     adminKeypair,
@@ -616,7 +658,7 @@ export async function swapToTkn(
     // keypair
   );
 
-  return { instructions: swapToTokenInstructions };
+  return { txID };
 }
 
 // export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
@@ -662,14 +704,12 @@ export async function swapToTknEnd(
   // keypair: Keypair,
   collectorPublicKeys: PublicKey[]
 ) {
-  const mintPublicKey = mintKeypair.publicKey;
-
   const accounts = {
     programState: programState,
     admin: adminPublicKey,
-    indexMint: mintPublicKey,
-    indexInfo: getIndexInfoPda(mintPublicKey),
-    swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+    indexMint: mintKeypair.publicKey,
+    indexInfo: getIndexInfoPda(mintKeypair.publicKey),
+    swapToTknInfo: getSwapToTknInfoPda(mintKeypair.publicKey),
     systemProgram: SYSTEM_PROGRAM_ID,
   };
   // console.log("accounts: ", accounts);
@@ -678,33 +718,25 @@ export async function swapToTknEnd(
     isSigner: false,
     isWritable: true,
   }));
-  // let transaction = await program.transaction.swapToTknEnd({
-  //   accounts: accounts,
-  //   remainingAccounts: remainingAccounts,
-  //   signers: [adminKeypair],
-  // });
-  // const blockhash = await provider.connection.getLatestBlockhash();
-  // const messageV0 = new TransactionMessage({
-  //   payerKey: adminPublicKey,
-  //   recentBlockhash: blockhash.blockhash,
-  //   instructions: transaction.instructions, // Use the instructions from the program RPC
-  // }).compileToV0Message();
 
-  // // Convert the message into a VersionedTransaction
-  // const versionedTransaction3 = new VersionedTransaction(messageV0);
-  // versionedTransaction3.sign([keypair]);
+  let txHash = await program.rpc.swapToTknEnd({
+    accounts: accounts,
+    remainingAccounts: remainingAccounts,
+    signers: [adminKeypair],
+  });
 
-  // Create the instructions for swapToTknEnd
-  const swapToTknEndInstruction = await program.methods
-    .swapToTknEnd()
-    .accounts(accounts)
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+  const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
+  
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${txHash}`);
+    txHash = await swapToTknEnd(program, mintKeypair, provider, collectorPublicKeys)
+  } else {
+    console.log(`Transaction confirmed: ${txHash}`);
+    return txHash; // Exit the retry loop if successful
+  }
 
   // Return instructions (no transactions created or signed here)
-  return {
-    instructions: [swapToTknEndInstruction],
-  };
+  return txHash
 
   // return { versionedTransaction3 };
 }
@@ -742,7 +774,7 @@ export async function swapToSol(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  const { instructions, addressLookupTableAccounts } = await swapToSolana(
+  const txID = await swapToSolana(
     program,
     provider,
     adminKeypair,
@@ -755,8 +787,7 @@ export async function swapToSol(
     swapInstruction,
     addressLookupTableAddresses
   );
-  console.log(instructions, "instructions")
-  return instructions;
+  return txID;
 }
 
 export async function sellIndex(
@@ -862,43 +893,51 @@ export async function swapToSolEnd(
   userPublicKey: PublicKey,
   provider: anchor.Provider,
   collectorPublicKeys: PublicKey[]
-): Promise<{ instructions: TransactionInstruction[] }> {
+): Promise< string> {
   try {
     const mintPublicKey = mintKeypair.publicKey;
 
-    const accounts = {
-      programState: programState,
-      admin: adminPublicKey,
-      indexMint: mintPublicKey,
-      indexInfo: getIndexInfoPda(mintPublicKey),
-      swapToSolInfo: getSwapToSolInfoPda(mintPublicKey, userPublicKey),
-      userAccount: userPublicKey,
-      systemProgram: SYSTEM_PROGRAM_ID,
-    };
+  const accounts = {
+    programState: programState,
+    admin: adminPublicKey,
+    indexMint: mintPublicKey,
+    indexInfo: getIndexInfoPda(mintPublicKey),
+    swapToSolInfo: getSwapToSolInfoPda(mintPublicKey, userPublicKey),
+    userAccount: userPublicKey,
+    systemProgram: SYSTEM_PROGRAM_ID,
+  };
+  // console.log("accounts: ", accounts);
+  const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: true,
+  }));
 
-    // Validate collectorPublicKeys
-    if (!collectorPublicKeys || collectorPublicKeys.length === 0) {
-      throw new Error("collectorPublicKeys must contain at least one public key.");
-    }
+  let txID = await program.rpc.swapToSolEnd({
+    accounts: accounts,
+    remainingAccounts: remainingAccounts,
+    signers: [adminKeypair],
+  });
 
-    const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
-      pubkey,
-      isSigner: false,
-      isWritable: true,
-    }));
+  const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
+  
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${txID}`);
+    txID = await swapToSolEnd(
+      program,
+      mintKeypair,
+      userPublicKey,
+      provider,
+      collectorPublicKeys
+    )
+  } else {
+    console.log(`Transaction confirmed: ${txID}`);
+    return txID; // Exit the retry loop if successful
+  }
+    
 
-    // Generate the instruction
-    const swapToSolEndInstruction = await program.methods
-      .swapToSolEnd()
-      .accounts(accounts)
-      .remainingAccounts(remainingAccounts)
-      .instruction();
+    return txID ;
 
-      console.log(swapToSolEndInstruction, "swap to sol end instruction")
-
-    return {
-      instructions: [swapToSolEndInstruction],
-    };
   } catch (error) {
     console.error("Error generating swapToSolEnd instruction:", error);
     throw error;
