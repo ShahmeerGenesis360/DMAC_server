@@ -31,7 +31,7 @@ const indexController = () => {
         tokenAllocations,
         collectorDetailApi,
         feeAmount,
-        symbol
+        symbol,
       } = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
@@ -52,7 +52,7 @@ const indexController = () => {
         collectorDetail: processedDetails,
         feeAmount: fee,
         category,
-        symbol
+        symbol,
       });
 
       // Save to the database
@@ -172,6 +172,92 @@ const indexController = () => {
       sendSuccessResponse({
         res,
         data: allIndexs?.length ? allIndexData : [],
+        message: "Fetched all indexs successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while fetching all index ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+
+  const getAllIndexPaginated = async (req: Request, res: Response) => {
+    logger.info(`indexController get all index`);
+    const { page = 1, limit = 10, search } = req.query;
+    const query: any = {};
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { username: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    try {
+      const allIndexs = await GroupCoin.find(query)
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+
+      const allIndexData = await Promise.all(
+        allIndexs.map(async (index) => {
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+          const tomorrow = new Date(today);
+          tomorrow.setUTCDate(today.getUTCDate() + 1); // Start of the next day
+
+          const twenty4hour = await Record.find({
+            indexCoin: index._id,
+          });
+          const totalValue = twenty4hour?.reduce(
+            (acc: number, item: IRecord) => acc + item.amount,
+            0
+          );
+
+          // Use reduce to calculate the total amount for the interval
+          const { totalBuy, totalSell, totalVolume, buyAmount } =
+            twenty4hour.reduce(
+              (acc, item) => {
+                if (item.type === "deposit") {
+                  acc.totalBuy += 1; // Add amount or default to 0 if undefined
+                  acc.buyAmount += item.amount;
+                } else {
+                  acc.totalSell += 1; // Add amount or default to 0 if undefined
+                }
+                acc.totalVolume += item.amount;
+                return acc; // Ensure accumulator is returned
+              },
+              { totalBuy: 0, totalSell: 0, totalVolume: 0, buyAmount: 0 } // Correctly formatted initial accumulator
+            );
+          const fund = await getOrUpdateFund(index._id);
+          return {
+            index,
+            totalBuy,
+            totalSell,
+            totalVolume,
+            totalValue,
+            price:
+              fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+            totalSupply: fund.totalSupply,
+            indexWorth: fund.indexWorth,
+            buyAmount
+          };
+        })
+      );
+
+      const totalIndex = await GroupCoin.countDocuments(query);
+
+      sendSuccessResponse({
+        res,
+        data: {
+          index: allIndexs?.length ? allIndexData : [],
+          total: totalIndex,
+          totalPages: Math.ceil(totalIndex / Number(limit)),
+          currentPage: Number(page),
+        },
         message: "Fetched all indexs successfully",
       });
     } catch (error) {
@@ -363,7 +449,7 @@ const indexController = () => {
         imageUrl,
         category,
         collectorDetails,
-        symbol
+        symbol,
       } = req.body;
 
       // Parse coins and FAQ
@@ -430,7 +516,8 @@ const indexController = () => {
     createIndex,
     getIndexById,
     updateIndex,
-    getIndexGraph
+    getIndexGraph,
+    getAllIndexPaginated,
   };
 };
 
