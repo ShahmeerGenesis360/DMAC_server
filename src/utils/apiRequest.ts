@@ -374,76 +374,39 @@ export async function swapToTknStart(
   provider: anchor.Provider
   // keypair: Keypair
 ) {
-  const mintPublicKey = mintKeypair.publicKey;
-  const getIndexInfo = getIndexInfoPda(mintPublicKey);
-  console.log(getIndexInfo);
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
+    const getIndexInfo = getIndexInfoPda(mintPublicKey);
+    console.log(getIndexInfo);
 
-  const accounts = {
-    programState: programState,
-    admin: adminPublicKey,
-    indexMint: mintPublicKey,
-    indexInfo: getIndexInfo,
-    swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
-    systemProgram: SYSTEM_PROGRAM_ID,
-  };
-  // console.log("accounts: ", accounts);
+    const accounts = {
+      programState: programState,
+      admin: adminPublicKey,
+      indexMint: mintPublicKey,
+      indexInfo: getIndexInfo,
+      swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+      systemProgram: SYSTEM_PROGRAM_ID,
+    };
+    
+    let transaction = await program.rpc.swapToTknStart({
+      accounts: accounts,
+      signers: [adminKeypair],
+    });
 
-  //   let txHash = await program.rpc.swapToTknStart({
-  //     accounts: accounts,
-  //     signers: [adminKeypair],
-  //   });
-  let transaction = await program.rpc.swapToTknStart({
-    accounts: accounts,
-    signers: [adminKeypair],
-  });
-
-  const confirmation = await provider.connection.confirmTransaction(transaction,"finalized")
-  
-  if (confirmation.value.err) {
-    console.error(`Transaction failed: ${transaction}`);
-    transaction = await swapToTknStart(program, mintKeypair, provider)
-  } else {
-    console.log(`Transaction confirmed: ${transaction}`);
-    return transaction; // Exit the retry loop if successful
+    const confirmation = await provider.connection.confirmTransaction(transaction,"finalized")
+    
+    if (confirmation.value.err) {
+      console.error(`Transaction failed: ${transaction}`)
+      return null
+    } else {
+      console.log(`Transaction confirmed: ${transaction}`);
+      return transaction; // Exit the retry loop if successful
+    }
+    
+  }catch(err){
+    return null
   }
-
-  // const programInstruction = transaction.instructions;
-  // const blockhash = await provider.connection.getLatestBlockhash();
-  // const messageV0 = new TransactionMessage({
-  //   payerKey: adminPublicKey,
-  //   recentBlockhash: blockhash.blockhash,
-  //   instructions: transaction.instructions, // Use the instructions from the program RPC
-  // }).compileToV0Message();
-
-  // // Convert the message into a VersionedTransaction
-  // const versionedTransaction = new VersionedTransaction(messageV0);
-  // versionedTransaction.sign([keypair]);
-
-  // const blockEngineUrl = "mainnet.block-engine.jito.wtf";
-  // console.log("BLOCK_ENGINE_URL:", blockEngineUrl);
-
-  // const bundleTransactionLimit = parseInt("5", 10);
-  // console.log(5, "bundle limit");
-  // const searcherClient = searcher.searcherClient(blockEngineUrl);
-  // const tipAccount = await getRandomeTipAccountAddress(searcherClient);
-  // const tipIx = SystemProgram.transfer({
-  //   fromPubkey: keypair.publicKey,
-  //   toPubkey: tipAccount,
-  //   lamports: 100000,
-  // });
-  // const tipTx = new VersionedTransaction(
-  //   new TransactionMessage({
-  //     payerKey: keypair.publicKey,
-  //     recentBlockhash: blockhash.blockhash,
-  //     instructions: [tipIx],
-  //   }).compileToV0Message()
-  // );
-  // tipTx.sign([keypair]);
-  // const swapToTokenStartIns = transaction.instructions;
-  // return { versionedTransaction, swapToTokenStartIns };
-  return transaction
-    // blockhash, // Blockhash needed to create VersionedTransaction
-
+  
 }
 
 export async function createWsol(program: Program, mintKeypair: Keypair, keypair: Keypair) {
@@ -584,7 +547,7 @@ export async function swapToTkn(
   tokenPublicKey: PublicKey,
   amountInSol: number
   // keypair: Keypair
-): Promise<{ txID: string }> {
+): Promise<string> {
   const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
@@ -626,24 +589,6 @@ export async function swapToTkn(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  // const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
-  //   provider.connection,
-  //   adminKeypair,
-  //     SOL,
-  //     adminPublicKey,
-  //     false
-  //   );
-
-  // const syncNativeIx = createSyncNativeInstruction(associatedTokenAddress.address);
-  // const { blockhash } = await provider.connection.getLatestBlockhash("confirmed");
-
-  // const messageV0 = new TransactionMessage({
-  //     payerKey: adminPublicKey,
-  //     recentBlockhash: blockhash,
-  //     instructions: [syncNativeIx],  // Directly use TransactionInstruction (no need for VersionedInstruction)
-  //   }).compileToV0Message();
-  // const tx1 = new VersionedTransaction(messageV0)
-
   const  txID = await swapToToken(
     program,
     provider,
@@ -658,7 +603,7 @@ export async function swapToTkn(
     // keypair
   );
 
-  return { txID };
+  return txID ;
 }
 
 // export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
@@ -923,20 +868,11 @@ export async function swapToSolEnd(
   
   if (confirmation.value.err) {
     console.error(`Transaction failed: ${txID}`);
-    txID = await swapToSolEnd(
-      program,
-      mintKeypair,
-      userPublicKey,
-      provider,
-      collectorPublicKeys
-    )
+    return null
   } else {
     console.log(`Transaction confirmed: ${txID}`);
     return txID; // Exit the retry loop if successful
   }
-    
-
-    return txID ;
 
   } catch (error) {
     console.error("Error generating swapToSolEnd instruction:", error);
