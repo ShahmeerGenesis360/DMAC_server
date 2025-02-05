@@ -449,19 +449,70 @@ const indexController = () => {
         0
       );
 
-      // Use reduce to calculate the total amount for the interval
-      const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
-        (acc, item) => {
-          if (item.type === "deposit") {
-            acc.totalBuy += 1; // Add amount or default to 0 if undefined
-          } else {
-            acc.totalSell += 1; // Add amount or default to 0 if undefined
-          }
-          acc.totalVolume += item.amount;
-          return acc; // Ensure accumulator is returned
+      const uniqueHolders = await Record.aggregate([
+        {
+          $match: {
+            indexCoin: id, // Filter for specific indexCoin
+          },
         },
-        { totalBuy: 0, totalSell: 0, totalVolume: 0 } // Correctly formatted initial accumulator
-      );
+        {
+          $group: {
+            _id: "$tokenAddress", // Group by wallet address
+            indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+            totalDeposit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+              },
+            },
+            totalWithdrawal: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            netBalance: {
+              $subtract: ["$totalDeposit", "$totalWithdrawal"],
+            }, // Deposit - Withdrawal
+          },
+        },
+        {
+          $match: {
+            netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+          },
+        },
+        {
+          $group: {
+            _id: "$indexCoin", // Group by indexCoin to get unique count per index
+            holders: { $sum: 1 }, // Count unique holders
+          },
+        },
+      ]);
+
+      // Use reduce to calculate the total amount for the interval
+      const { totalBuy, totalSell, totalVolume, buyAmount, sellAmount } =
+            twenty4hour.reduce(
+              (acc, item) => {
+                if (item.type === "deposit") {
+                  acc.totalBuy += 1; // Add amount or default to 0 if undefined
+                  acc.buyAmount += item.amount;
+                } else {
+                  acc.totalSell += 1; // Add amount or default to 0 if undefined
+                  acc.sellAmount += item.amount;
+                }
+                acc.totalVolume += item.amount;
+                return acc; // Ensure accumulator is returned
+              },
+              {
+                totalBuy: 0,
+                totalSell: 0,
+                totalVolume: 0,
+                buyAmount: 0,
+                sellAmount: 0,
+              } // Correctly formatted initial accumulator
+            );
       console.log("total 24 hr volume ", {
         totalValue,
         totalBuy,
@@ -484,6 +535,7 @@ const indexController = () => {
               fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
             totalSupply: fund.totalSupply,
             indexWorth: fund.indexWorth,
+            totalHolder: uniqueHolders[0]?.holders || 0,
           },
         },
         message: "Index Graph successfull",
