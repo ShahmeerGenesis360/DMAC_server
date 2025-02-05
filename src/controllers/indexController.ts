@@ -216,9 +216,54 @@ const indexController = () => {
             (acc: number, item: IRecord) => acc + item.amount,
             0
           );
+          const uniqueHolders = await Record.aggregate([
+            {
+              $match: {
+                indexCoin: index._id, // Filter for specific indexCoin
+              },
+            },
+            {
+              $group: {
+                _id: "$tokenAddress", // Group by wallet address
+                indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+                totalDeposit: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                  },
+                },
+                totalWithdrawal: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                  },
+                },
+              },
+            },
+            {
+              $addFields: {
+                netBalance: {
+                  $subtract: ["$totalDeposit", "$totalWithdrawal"],
+                }, // Deposit - Withdrawal
+              },
+            },
+            {
+              $match: {
+                netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+              },
+            },
+            {
+              $group: {
+                _id: "$indexCoin", // Group by indexCoin to get unique count per index
+                holders: { $sum: 1 }, // Count unique holders
+              },
+            },
+          ]);
+
+          console.log(uniqueHolders);
+
+          console.log("Total Holders:", uniqueHolders[0] || 0);
 
           // Use reduce to calculate the total amount for the interval
-          const { totalBuy, totalSell, totalVolume, buyAmount } =
+          const { totalBuy, totalSell, totalVolume, buyAmount, sellAmount } =
             twenty4hour.reduce(
               (acc, item) => {
                 if (item.type === "deposit") {
@@ -226,11 +271,18 @@ const indexController = () => {
                   acc.buyAmount += item.amount;
                 } else {
                   acc.totalSell += 1; // Add amount or default to 0 if undefined
+                  acc.sellAmount += item.amount;
                 }
                 acc.totalVolume += item.amount;
                 return acc; // Ensure accumulator is returned
               },
-              { totalBuy: 0, totalSell: 0, totalVolume: 0, buyAmount: 0 } // Correctly formatted initial accumulator
+              {
+                totalBuy: 0,
+                totalSell: 0,
+                totalVolume: 0,
+                buyAmount: 0,
+                sellAmount: 0,
+              } // Correctly formatted initial accumulator
             );
           const fund = await getOrUpdateFund(index._id);
           return {
@@ -239,11 +291,13 @@ const indexController = () => {
             totalSell,
             totalVolume,
             totalValue,
+            totalHolder: uniqueHolders[0]?.holders || 0,
+            totalValueLocked: buyAmount - sellAmount || 0,
             price:
               fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
             totalSupply: fund.totalSupply,
             indexWorth: fund.indexWorth,
-            buyAmount
+            buyAmount,
           };
         })
       );
