@@ -22,6 +22,18 @@ import {
 
 import fetch from "node-fetch";
 import { schema, SharedAccountsRouteArgs } from "./schema";
+import { config } from "../config";
+const { RPC_URL, RPC_URL2 } = config;
+
+const rpcUrls = [
+  RPC_URL,
+  RPC_URL2
+];
+
+const getRandomRpcUrl = () => {
+  const randomIndex = Math.floor(Math.random() * rpcUrls.length);
+  return rpcUrls[randomIndex];
+};
 
 const jupiterProgramId = new PublicKey(
   "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
@@ -60,6 +72,7 @@ const removePubkeys = new Set([
 ]);
 
 export const findProgramAuthority = (programId: PublicKey): PublicKey => {
+  
   return PublicKey.findProgramAddressSync(
     [Buffer.from("authority")],
     programId
@@ -133,7 +146,7 @@ export const getQuote = async (
   amount: number
 ) => {
   return fetch(
-    `${API_ENDPOINT}/quote?outputMint=${toMint.toBase58()}&inputMint=${fromMint.toBase58()}&amount=${amount}&slippage=5&onlyDirectRoutes=true`
+    `${API_ENDPOINT}/quote?outputMint=${toMint.toBase58()}&inputMint=${fromMint.toBase58()}&amount=${amount}&slippage=1&onlyDirectRoutes=true`
   ).then((response) => response.json());
 };
 
@@ -309,39 +322,43 @@ export const swapToSolana = async (
   computeBudgetPayloads: any[],
   swapPayload: any,
   addressLookupTableAddresses: string[] // Include ALT addresses as a parameter
-): Promise<{ instructions: TransactionInstruction[]; addressLookupTableAccounts: AddressLookupTableAccount[] }> => {
+): Promise<string> => {
   try {
-    const connection = provider.connection;
-    const programAuthority = findProgramAuthority(program.programId);
-    const programWSOLAccount = findProgramWSOLAccount(program.programId);
+    let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+  const programAuthority = findProgramAuthority(program.programId);
+  console.log(programAuthority, "programAuthority")
+  const programWSOLAccount = findProgramWSOLAccount(program.programId);
+  const adminPublicKey = adminKeypair.publicKey;
 
-    // Convert swapPayload to a TransactionInstruction
-    const swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+  const rpcUrl = getRandomRpcUrl()
+  const connection = new Connection(rpcUrl, "confirmed")
 
-    // Serialize and optionally log the data
-    const serializedData = Buffer.from(swapInstruction.data);
 
-    // Fetch Address Lookup Table Accounts
-    const addressLookupTableAccounts = await getAdressLookupTableAccounts(
-      connection,
-      addressLookupTableAddresses
-    );
+  const serializedData = Buffer.from(swapInstruction.data);
+  // try {
+  //   const deserializedData = borsh.deserialize(schema, SharedAccountsRouteArgs, serializedData);
+  //   console.log("Deserialized Data:", deserializedData);
+  // } catch (error) {
+  //   console.error("Failed to deserialize data:", error);
+  // }
+  // const instructionData = new Uint8Array(/* raw bytes from instruction */);
+  // let coder = new anchor.BorshCoder(IDL);
+  // const ix = coder.instruction.decode(swapInstruction.data, "base58");
+  // console.log((ix.data as any).quotedInAmount.toString());
 
-    // Generate the instructions
-    const computeBudgetInstructions = computeBudgetPayloads.map(
-      instructionDataToTransactionInstruction
-    );
-
-    const swapToSolInstruction = await program.methods
+  const instructions = [
+    ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+    await program.methods
       .swapToSol(swapInstruction.data)
       .accounts({
         programAuthority: programAuthority,
         programWsolAccount: programWSOLAccount,
-        userAccount: adminKeypair.publicKey,
+        userAccount: adminPublicKey,
         solMint: NATIVE_MINT,
         jupiterProgram: jupiterProgramId,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
+
         programState: programState,
         indexMint: indexMint,
         indexInfo: indexInfo,
@@ -350,15 +367,41 @@ export const swapToSolana = async (
         priceUpdate: PYTH_NETWORK_PROGRAM_ID,
       })
       .remainingAccounts(swapInstruction.keys)
-      .instruction();
+      .instruction(),
+  ];
 
-    // Combine compute budget and swap instructions into a single array
-    const instructions = [...computeBudgetInstructions, swapToSolInstruction];
+  const blockhash = (await connection.getLatestBlockhash()).blockhash;
 
-    return { instructions, addressLookupTableAccounts };
+  // If you want, you can add more lookup table accounts here
+  // console.log("addressLookupTableAddresses", addressLookupTableAddresses)
+  const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+    connection,
+    addressLookupTableAddresses
+  );
+  const messageV0 = new TransactionMessage({
+    payerKey: adminPublicKey,
+    recentBlockhash: blockhash,
+    instructions,
+  }).compileToV0Message(addressLookupTableAccounts);
+  const transaction = new VersionedTransaction(messageV0);
+  transaction.sign([adminKeypair])
+
+  let txID = await connection.sendTransaction(transaction, {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+  });
+
+  const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
+    return null
+  } else {
+    console.log(`Transaction confirmed: ${transaction}`);
+    return txID;
+  }
   } catch (error) {
-    console.error("Error: web3.ts, SwapToSolana()", error);
-    throw error;
+      console.error(error)
+      return null
   }
 };
 
@@ -373,46 +416,72 @@ export const swapToToken = async (
   computeBudgetPayloads: any[],
   swapPayload: any,
   addressLookupTableAddresses: string[]
-): Promise<{ instructions: TransactionInstruction[] }> => {
+): Promise<string > => {
   try {
     const swapInstruction =
       instructionDataToTransactionInstruction(swapPayload);
     const programAuthority = findProgramAuthority(program.programId);
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
     const adminPublicKey = adminKeypair.publicKey;
-    const connection = provider.connection;
+    console.log(programAuthority, "programAuthority")
+    
+    const rpcurl = getRandomRpcUrl()
+    const connection = new Connection(rpcurl, 'confirmed');
 
-    // Create compute budget instructions
-    const computeBudgetInstructions = computeBudgetPayloads.map(
-      instructionDataToTransactionInstruction
+    const instructions = [
+      ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+      await program.methods
+        .swapToTkn(swapInstruction.data)
+        .accounts({
+          programAuthority: programAuthority,
+          programWsolAccount: programWSOLAccount,
+          userAccount: adminPublicKey,
+          solMint: NATIVE_MINT,
+          jupiterProgram: jupiterProgramId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+  
+          programState: programState,
+          indexMint: indexMint,
+          indexInfo: indexInfo,
+          swapToTkn: swapToTknInfo,
+        })
+        .remainingAccounts(swapInstruction.keys)
+        .instruction(),
+    ];
+  
+
+    const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+        connection,
+        addressLookupTableAddresses
     );
+    const blockhash = await connection.getLatestBlockhash()
+    const messageV0 = new TransactionMessage({
+      payerKey: adminPublicKey,
+      recentBlockhash: blockhash.blockhash,
+      instructions,
+    }).compileToV0Message(addressLookupTableAccounts);
+    const transaction = new VersionedTransaction(messageV0);
+    transaction.sign([adminKeypair]);
+   let txID = await connection.sendTransaction(transaction, {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+  });
+  
+  // ✅ Fix: Ensure the transaction is confirmed
 
-    // Generate swapToTkn instructions
-    const swapToTknInstruction = await program.methods
-      .swapToTkn(swapInstruction.data)
-      .accounts({
-        programAuthority: programAuthority,
-        programWsolAccount: programWSOLAccount,
-        userAccount: adminPublicKey,
-        solMint: NATIVE_MINT,
-        jupiterProgram: jupiterProgramId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        programState: programState,
-        indexMint: indexMint,
-        indexInfo: indexInfo,
-        swapToTkn: swapToTknInfo,
-      })
-      .remainingAccounts(swapInstruction.keys)
-      .instruction();
-
-    // Combine all instructions into one array
-    const instructions = [...computeBudgetInstructions, swapToTknInstruction];
-
-    return { instructions }; // Return the instructions
+  const confirmation = await connection.confirmTransaction(txID,"finalized")
+  
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
+    return null;
+  } else {
+    console.log(`Transaction confirmed: ${transaction}`);
+    return txID; // Exit the retry loop if successful
+  }
   } catch (error) {
     console.error("Error in swapToToken:", error);
-    throw new Error("Failure during swapToToken processing");
+    return null;
   }
 };
 

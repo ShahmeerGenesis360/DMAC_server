@@ -18,6 +18,7 @@ export const config = {
   NETWORK: process.env.NETWORK,
   POSTGRES_URI:process.env.POSTGRES_URI,
   RPC_URL: process.env.RPC_URL,
+  RPC_URL2: process.env.RPC_URL2,
   getKeypair: getKeypair,
   redisHost: process.env.REDIS_HOST || 'localhost', // Use the host provided by the cloud Redis service
   redisPort: Number(process.env.REDIS_PORT) || 6379, // Use the port provided by the cloud Redis service
