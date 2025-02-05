@@ -8,6 +8,7 @@ export interface IRecord extends Document {
   amount: number; // The amount deposited or withdrawn
   tokenAddress: string;
   timestamp?: number; // Optional custom timestamp for transaction
+  createdAt?: Date
 }
 
 const recordSchema = new Schema<IRecord>(

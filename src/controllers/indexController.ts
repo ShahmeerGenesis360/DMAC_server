@@ -17,6 +17,14 @@ import { Types } from "mongoose";
 
 const indexController = () => {
   const groupIndexService = indexService();
+  const calculatePercentageChange = (
+    previousPrice: number,
+    currentPrice: number
+  ): number => {
+    if (previousPrice === 0) return 0; // Avoid division by zero
+    const change = ((currentPrice - previousPrice) / previousPrice) * 100;
+    return parseFloat(change.toFixed(2)); // Round to 2 decimal places
+  };
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
@@ -565,8 +573,103 @@ const indexController = () => {
     }
   };
 
+  const getAllIndexV2 = async (req: Request, res: Response) => {
+    try {
+      const now = moment();
+      const oneHourAgo = moment().subtract(1, "hour");
+      const today = moment().format("YYYY-MM-DD");
+      const sevenDaysAgo = moment().subtract(7, "days");
+
+      // Fetch all indexes
+      const allIndexes = await GroupCoin.find();
+
+      // Process each index asynchronously
+      const allIndexData = await Promise.all(
+        allIndexes.map(async (index) => {
+          const indexPriceHistory = await GroupCoinHistory.find({
+            indexId: index._id,
+          });
+
+          const { hourData, dayData, sevenDayData } = indexPriceHistory.reduce(
+            (acc, item) => {
+              if (moment(item.createdAt).isBetween(oneHourAgo, now)) {
+                acc.hourData.push(item);
+              }
+              if (moment(item.createdAt).format("YYYY-MM-DD") === today) {
+                acc.dayData.push(item);
+              }
+              if (moment(item.createdAt).isBetween(sevenDaysAgo, now)) {
+                acc.sevenDayData.push(item);
+              }
+              return acc;
+            },
+            { hourData: [], dayData: [], sevenDayData: [] }
+          );
+
+          // Debugging output
+          console.log("hourData >", hourData.length);
+          console.log("dayData >", dayData.length);
+          console.log("sevenDayData >", sevenDayData.length);
+
+          // Calculate percentage changes
+          const percentage1h =
+            hourData.length > 1
+              ? calculatePercentageChange(
+                  hourData[0].price,
+                  hourData[hourData.length - 1].price
+                )
+              : 0;
+
+          const percentage24h =
+            dayData.length > 1
+              ? calculatePercentageChange(
+                  dayData[0].price,
+                  dayData[dayData.length - 1].price
+                )
+              : 0;
+
+          const percentage7d =
+            sevenDayData.length > 1
+              ? calculatePercentageChange(
+                  sevenDayData[0].price,
+                  sevenDayData[sevenDayData.length - 1].price
+                )
+              : 0;
+
+          return {
+            _id: index._id,
+            name: index.name,
+            coins: index.coins,
+            faq: index.faq,
+            mintKeypairSecret: index.mintKeySecret,
+            description: index.description,
+            visitCount: index.visitCount,
+            imageUrl: index.imageUrl,
+            category: index.category,
+            collectorDetail: index.collectorDetail,
+            price: 0,
+            a1H: percentage1h,
+            a1D: percentage24h,
+            a1W: percentage7d,
+          };
+        })
+      );
+
+      sendSuccessResponse({
+        res,
+        data: allIndexData,
+        message: "Fetched all indexs successfully",
+      });
+    } catch (err) {
+      console.error("Error fetching index data:", err);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error" });
+    }
+  };
+
   return {
-    getAllIndex,
+    getAllIndex: getAllIndexV2,
     createIndex,
     getIndexById,
     updateIndex,
