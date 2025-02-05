@@ -31,6 +31,18 @@ async function handleCreateIndexQueue(eventData: any): Promise<void> {
     
 }
 
+const decimals: Record<string, number>  = {
+  MOTHER: 6,
+  POPCAT: 9,
+  WIF: 6,
+  FWOG: 6,
+  RETARDIO:6,
+  MICHI: 6,
+  Ai16z: 9,
+  Griffain: 6,
+  AIXBT: 8,
+  SWARMS: 6,
+}
 
 async function getTransactionReceipt(signature:string) {
 	const receipt: any = await connection.getTransaction(signature, {
@@ -86,13 +98,40 @@ async function fetchSolanaUsdPrice() {
 	
 }
 
+async function confirmFinalized(txHash: string) {
+  let status = null;
+  let attempts = 0;
+  const maxAttempts = 10; // Limit retries to avoid infinite loops
+
+  while (attempts < maxAttempts) {
+    try {
+      console.log(`Checking status for transaction: ${txHash}`);
+      const txStatus = await connection.getSignatureStatus(txHash, { searchTransactionHistory: true });
+
+      if (txStatus.value && txStatus.value.confirmationStatus === "finalized") {
+        console.log(`Transaction ${txHash} is finalized ✅`);
+        return;
+      }
+    } catch (error) {
+      console.log(`Error checking status of ${txHash}: ${error.message}`);
+    }
+
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+  }
+
+  console.log(`Transaction ${txHash} did not finalize in time ❌`);
+}
+
+
 async function handleBuyIndexQueue(
     eventData: DmacBuyIndexEvent
   ): Promise<void> {
     try {
       let MAX_RETRIES = 5
+      let allTxHashes: string[] = []
       let indexPublicKey = eventData.index_mint.toString();
-      // eventData.deposited = "1"
+
 
 
       indexPublicKey = `"${indexPublicKey}"`;
@@ -105,7 +144,9 @@ async function handleBuyIndexQueue(
       const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
       let attempt = 0;
       let swapToTknStartTxHash = null;
+      console.log("here")
       while(attempt < MAX_RETRIES){
+        console.log("swap to token start")
         attempt += 1;
         console.log(`Attempt #${attempt}`);
 
@@ -127,7 +168,6 @@ async function handleBuyIndexQueue(
           }
         } 
       }
-      
 
       for (const coin of index.coins) {
         let tries = 0
@@ -138,14 +178,14 @@ async function handleBuyIndexQueue(
         
         while(tries<MAX_RETRIES){
           tries += 1;
-          console.log(`Attempt #${tries}`);
+          console.log(`Attempt #${tries} swap token ${coin.coinName}`);
 
-          while(true){
-            solPrice = await fetchSolanaUsdPrice();
-            if(solPrice!=null){
-              break
-            }
+          solPrice = await fetchSolanaUsdPrice();
+          if(solPrice==null){
+            console.log("Didnt get the solprice")
+            continue;
           }
+
           amount =
           (((coin.proportion / 100) * Number(eventData.deposited)) / solPrice) *
           LAMPORTS_PER_SOL;
@@ -162,6 +202,7 @@ async function handleBuyIndexQueue(
           );
           if(txID!=null){
             console.log(`Transaction completed successfully: ${txID}`);
+            allTxHashes.push(txID);
             break;
           }
           else{
@@ -198,17 +239,21 @@ async function handleBuyIndexQueue(
           tokenAddress: coin.address,
         });
         await record.save();
+        
       }
       const collectorPublicKeys = index.collectorDetail.map(
         (collectorDetail) => new PublicKey(collectorDetail.collector)
       );
 
+      for (const txHash of allTxHashes) {
+        await confirmFinalized(txHash);
+      }
+
       let tries = 0;
       let swapToTknEndTxHash = null
       while(tries<MAX_RETRIES){
         tries += 1;
-        console.log(`Attempt #${tries}`);
-
+        console.log(`Attempt #${tries} swap to tokenEnd`);
         swapToTknEndTxHash = await swapToTknEnd(
           program,
           mintkeypair,
@@ -237,6 +282,7 @@ async function handleBuyIndexQueue(
           indexCoin: index._id,
         });
         await adminReward.save();
+      
       });
     } catch (error) {
       console.log("Error: EventQueueHandler.ts, handleBuyIndexQueue()", error);
@@ -247,7 +293,7 @@ async function handleBuyIndexQueue(
 async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void> {
     try{
         const MAX_RETRIES = 5;
-        let transactions: VersionedTransaction[] = [];
+        let allTxHash = [];
         let globalInstructions: TransactionInstruction[] = [];
         let userPubKey:PublicKey = await getTransactionReceipt(eventData.signature)
         console.log(userPubKey, "userPub")
@@ -262,7 +308,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         console.log(mintKeySecret)
         const secretKeyUint8Array = new Uint8Array(Buffer.from(mintKeySecret, "base64"))
         const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
-
+        
         for(const coin of index.coins){
             let tokenDecimals;
             let tokenPrice;
@@ -270,18 +316,24 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
             let txId = null;
             const tokenAddress = new PublicKey(coin.address);
             let amount;
+            
             while(tries < MAX_RETRIES){
+            
               tries += 1;
               console.log(`Attempt #${tries}`);
               tokenPrice = await getTokenPrice(coin.address)
-              tokenDecimals = await getTokenDecimals(connection, coin.address);
+              console.log(coin.coinName, coin.address, "name address")
+              tokenDecimals = decimals[coin.coinName]
               console.log(tokenPrice, tokenDecimals, "decimal")
-              amount = ((Number(eventData.withdrawn) * (coin.proportion /100))/tokenPrice.sol) * Math.pow(10,tokenDecimals); 
+              amount = ((((Number(eventData.withdrawn)+ 
+              Number(eventData.adminFee)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
+              console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
               txId = await swapToSol(program, provider as Provider, mintkeypair, userPubKey, tokenAddress, amount);
               if(txId!=null){
                 console.log(`Transaction completed successfully: ${txId}`);
+                allTxHash.push(txId)
                 break;
               }
               else{
@@ -308,10 +360,10 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
             fund.indexWorth -= withdrawalAmount;
 
       // Update the fund in the database
-      await IndexFund.findOneAndUpdate({ indexId: index._id }, fund, {
-        upsert: true,
-        new: true,
-      });
+            await IndexFund.findOneAndUpdate({ indexId: index._id }, fund, {
+              upsert: true,
+              new: true,
+            });
 
             const record = new Record({
                 // user: eventData.userAddress,
@@ -321,10 +373,15 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
                 tokenAddress: coin.address,
             })
             await record.save();
+
         };
         const collectorPublicKeys = index.collectorDetail.map(
           (collectorDetail) => new PublicKey(collectorDetail.collector)
         );
+        for (const txHash of allTxHash) {
+          await confirmFinalized(txHash);
+        }
+
         let tries = 0;
         let txID = null;
         while(tries<MAX_RETRIES){

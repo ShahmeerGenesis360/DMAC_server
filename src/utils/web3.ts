@@ -23,8 +23,17 @@ import {
 import fetch from "node-fetch";
 import { schema, SharedAccountsRouteArgs } from "./schema";
 import { config } from "../config";
-const { RPC_URL } = config;
+const { RPC_URL, RPC_URL2 } = config;
 
+const rpcUrls = [
+  RPC_URL,
+  RPC_URL2
+];
+
+const getRandomRpcUrl = () => {
+  const randomIndex = Math.floor(Math.random() * rpcUrls.length);
+  return rpcUrls[randomIndex];
+};
 
 const jupiterProgramId = new PublicKey(
   "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
@@ -320,7 +329,10 @@ export const swapToSolana = async (
   console.log(programAuthority, "programAuthority")
   const programWSOLAccount = findProgramWSOLAccount(program.programId);
   const adminPublicKey = adminKeypair.publicKey;
-  const connection = provider.connection;
+
+  const rpcUrl = getRandomRpcUrl()
+  const connection = new Connection(rpcUrl, "confirmed")
+
 
   const serializedData = Buffer.from(swapInstruction.data);
   // try {
@@ -374,12 +386,14 @@ export const swapToSolana = async (
   const transaction = new VersionedTransaction(messageV0);
   transaction.sign([adminKeypair])
 
-  let txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
+  let txID = await connection.sendTransaction(transaction, {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+  });
 
   const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
-  console.log(programAuthority, "programAuthority")
   if (confirmation.value.err) {
-    console.error(`Transaction failed: ${transaction}`);
+    console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
     return null
   } else {
     console.log(`Transaction confirmed: ${transaction}`);
@@ -410,7 +424,9 @@ export const swapToToken = async (
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
     const adminPublicKey = adminKeypair.publicKey;
     console.log(programAuthority, "programAuthority")
-    const connection = new Connection(RPC_URL, 'confirmed');
+    
+    const rpcurl = getRandomRpcUrl()
+    const connection = new Connection(rpcurl, 'confirmed');
 
     const instructions = [
       ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
@@ -448,32 +464,21 @@ export const swapToToken = async (
     const transaction = new VersionedTransaction(messageV0);
     transaction.sign([adminKeypair]);
    let txID = await connection.sendTransaction(transaction, {
-    skipPreflight: false,
-    preflightCommitment: "processed",
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
   });
   
   // ✅ Fix: Ensure the transaction is confirmed
 
-  const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
+  const confirmation = await connection.confirmTransaction(txID,"finalized")
   
   if (confirmation.value.err) {
-    console.error(`Transaction failed: ${transaction}`);
-    txID = await swapToToken( 
-      program,
-      provider,
-      adminKeypair,
-      programState,
-      indexMint,
-      indexInfo,
-      swapToTknInfo,
-      computeBudgetPayloads,
-      swapPayload,
-      addressLookupTableAddresses)
+    console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
+    return null;
   } else {
     console.log(`Transaction confirmed: ${transaction}`);
     return txID; // Exit the retry loop if successful
   }
-    return null ; // Return the instructions
   } catch (error) {
     console.error("Error in swapToToken:", error);
     return null;

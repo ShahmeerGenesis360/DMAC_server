@@ -387,7 +387,6 @@ export async function swapToTknStart(
       swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
       systemProgram: SYSTEM_PROGRAM_ID,
     };
-    
     let transaction = await program.rpc.swapToTknStart({
       accounts: accounts,
       signers: [adminKeypair],
@@ -402,15 +401,16 @@ export async function swapToTknStart(
       console.log(`Transaction confirmed: ${transaction}`);
       return transaction; // Exit the retry loop if successful
     }
-    
   }catch(err){
+    console.log(err)
     return null
   }
   
 }
 
-export async function createWsol(program: Program, mintKeypair: Keypair, keypair: Keypair) {
-  const mintPublicKey = mintKeypair.publicKey;
+export async function createWsol(program: Program, mintKeypair: Keypair, keypair: Keypair, provider: anchor.Provider) {
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
 
   const wsolTokenAccount = getAssociatedTokenAddressSync(
     SOL_MINT,
@@ -432,12 +432,24 @@ export async function createWsol(program: Program, mintKeypair: Keypair, keypair
   };
   // console.log("accounts: ", accounts);
 
-  let transaction = await program.transaction.createWsol({
+  let transaction = await program.rpc.createWsol({
     accounts: accounts,
     signers: [keypair],
   });
+  const confirmation = await provider.connection.confirmTransaction(transaction,"finalized");
+  if (confirmation.value.err) {
+    console.error(`Transaction failed: ${transaction}`)
+    return null
+  } else {
+    console.log(`Transaction confirmed: ${transaction}`);
+    return transaction; // Exit the retry loop if successful
+  }
+  }catch(err){
+    console.log(JSON.stringify(err))
+    return null
+  }
+  
 
-  return transaction.instructions;
 }
 
 
@@ -548,7 +560,8 @@ export async function swapToTkn(
   amountInSol: number
   // keypair: Keypair
 ): Promise<string> {
-  const mintPublicKey = mintKeypair.publicKey;
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
@@ -579,8 +592,8 @@ export async function swapToTkn(
   result = await getSwapIx(adminPublicKey, tokenAccount, quote);
 
   if ("error" in result) {
-    console.log({ result });
-    return result;
+    console.log({ result }, "error in getSwapIx");
+    return null
   }
   // We have now both the instruction and the lookup table addresses.
   const {
@@ -604,6 +617,10 @@ export async function swapToTkn(
   );
 
   return txID ;
+  }catch(err){
+    return null
+  }
+  
 }
 
 // export async function swapToTknEnd(program: Program, mintKeypair: Keypair, provider: anchor.Provider, keypair: Keypair, collectorPublicKeys: PublicKey[]) {
@@ -694,22 +711,26 @@ export async function swapToSol(
   tokenPublicKey: PublicKey,
   amountInToken: number
 ) {
-  const mintPublicKey = mintKeypair.publicKey;
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
   let result: any = null;
     // Find the best Quote from the Jupiter API
-    const quote = await getQuote(tokenPublicKey, SOL, amountInToken);
+    const quote: any = await getQuote(tokenPublicKey, SOL, amountInToken);
     console.log(quote, "quote")
-
+    if(quote.error!=null){
+      console.log("quote not there ")
+      return null
+    }
     // Convert the Quote into a Swap instruction
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
     result = await getSwapIx(adminPublicKey, programWSOLAccount, quote);
 
     if ("error" in result) {
-      console.log({ result });
-      return result;
+      console.log({ result }, "error in getting swap instruction");
+      return null;
     }
 
   // We have now both the instruction and the lookup table addresses.
@@ -733,6 +754,11 @@ export async function swapToSol(
     addressLookupTableAddresses
   );
   return txID;
+  }catch(err){
+    console.log("erron in swapToSol", JSON.stringify(err))
+    return null
+  }
+  
 }
 
 export async function sellIndex(
