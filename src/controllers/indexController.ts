@@ -14,8 +14,8 @@ import moment, { Moment } from "moment";
 import { getAllIntervals, getOrUpdateFund, groupDataByDay } from "../utils";
 import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
-import { addEventToQueue } from "../queue/eventQueue";
-import { RebalanceEvent } from "../types";
+// import { addEventToQueue } from '../queue/eventQueue';
+// import { RebalanceEvent } from "../types";
 
 const indexController = () => {
   const groupIndexService = indexService();
@@ -742,6 +742,7 @@ const indexController = () => {
             imageUrl: index.imageUrl,
             category: index.category,
             collectorDetail: index.collectorDetail,
+            mintPublickey: index.mintPublickey,
             price: 0,
             a1H: percentage1h,
             a1D: percentage24h,

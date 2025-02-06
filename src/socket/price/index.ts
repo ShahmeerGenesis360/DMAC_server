@@ -3,7 +3,7 @@ import { getChartData, getIndexId } from "./helper";
 import { RS } from "priceSocket";
 import { Record, IRecord } from "../../models/record";
 import { Types } from "mongoose";
-import { getAllIntervals, getOrUpdateFund } from "../../utils";
+import { getAllIntervals, getOrUpdateFund, groupDataByDay } from "../../utils";
 import moment, { Moment } from "moment";
 import { GroupCoinHistory } from "../../models/groupCoinHistory";
 
@@ -50,8 +50,30 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
       try {
         const groupcoin = await getIndexId(id);
         if (groupcoin === undefined) return;
-        const { allIntervals, start, end } = await getTimeFrame("1D");
+        const now = moment();
+        const starts: Moment = moment(now).subtract(6, "days");
+        const allGraphIntervals: string[] = await getAllIntervals(
+          starts,
+          now,
+          7
+        );
         const viewsArray = [];
+        const graphArray = [];
+        for (let counter = 0; counter < allGraphIntervals.length; counter++) {
+          const results = await GroupCoinHistory.find({
+            indexId: id,
+            createdAt: {
+              $gt: allGraphIntervals[counter],
+              $lt: allGraphIntervals[counter + 1] || now,
+            },
+          });
+
+          graphArray.push({
+            ...groupDataByDay(results)?.[0],
+            time: allGraphIntervals[counter],
+          });
+        }
+        const { allIntervals, start, end } = await getTimeFrame("1D");
         for (let index = 0; index < allIntervals.length; index++) {
           const results = await GroupCoinHistory.find({
             indexId: id,
@@ -76,35 +98,6 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
           });
         }
 
-        const allResponses = await Promise.all(
-          groupcoin.coins.map(async (coin) => {
-            const responseData: RS[] = await getChartData(coin.address, "1m");
-
-            if (firstFetch) {
-              // Fetch the last 5 candles
-              return responseData.map((data) => ({
-                time: data.t,
-                open: data.o,
-                close: data.c,
-                high: data.h,
-                low: data.l,
-              }));
-            } else {
-              // Fetch only the latest candle
-              const latest = responseData[responseData.length - 1];
-              return [
-                {
-                  time: latest.t,
-                  open: latest.o,
-                  close: latest.c,
-                  high: latest.h,
-                  low: latest.l,
-                },
-              ];
-            }
-          })
-        );
-
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
         const tomorrow = new Date(today);
@@ -124,6 +117,47 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
           (acc: number, item: IRecord) => acc + item.amount,
           0
         );
+        const uniqueHolders = await Record.aggregate([
+          {
+            $match: {
+              indexCoin: id, // Filter for specific indexCoin
+            },
+          },
+          {
+            $group: {
+              _id: "$tokenAddress", // Group by wallet address
+              indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+              totalDeposit: {
+                $sum: {
+                  $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                },
+              },
+              totalWithdrawal: {
+                $sum: {
+                  $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                },
+              },
+            },
+          },
+          {
+            $addFields: {
+              netBalance: {
+                $subtract: ["$totalDeposit", "$totalWithdrawal"],
+              }, // Deposit - Withdrawal
+            },
+          },
+          {
+            $match: {
+              netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+            },
+          },
+          {
+            $group: {
+              _id: "$indexCoin", // Group by indexCoin to get unique count per index
+              holders: { $sum: 1 }, // Count unique holders
+            },
+          },
+        ]);
 
         // Use reduce to calculate the total amount for the interval
         const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
@@ -146,11 +180,11 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
         });
         const fund = await getOrUpdateFund(id);
 
-        const latestResponses = allResponses.flat();
-        if (latestResponses?.length) {
+        // const latestResponses = allResponses.flat();
+        if (graphArray?.length) {
           if (firstFetch) {
             socket.emit(`index2:${id}`, {
-              graph: latestResponses,
+              graph: graphArray,
               info: {
                 id,
                 totalValue,
@@ -163,13 +197,14 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
                     : fund.indexWorth / fund.totalSupply,
                 totalSupply: fund.totalSupply,
                 indexWorth: fund.indexWorth,
+                totalHolder: uniqueHolders[0]?.holders || 0,
               },
               chart: viewsArray,
             }); // Emit the initial 5 candles + latestResponses
             firstFetch = false; // Switch to subsequent updates
           } else {
             socket.emit(`index2:${id}`, {
-              graph: latestResponses,
+              graph: graphArray,
               info: {
                 id,
                 totalValue,
@@ -182,6 +217,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
                     : fund.indexWorth / fund.totalSupply,
                 totalSupply: fund.totalSupply,
                 indexWorth: fund.indexWorth,
+                totalHolder: uniqueHolders[0]?.holders || 0,
               },
               chart: viewsArray,
             }); // Emit the latest candle + average
