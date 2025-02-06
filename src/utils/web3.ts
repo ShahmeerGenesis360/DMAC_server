@@ -391,7 +391,7 @@ export const swapToSolana = async (
     preflightCommitment: "confirmed",
   });
 
-  const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
+  const confirmation = await provider.connection.confirmTransaction(txID,"confirmed")
   if (confirmation.value.err) {
     console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
     return null
@@ -470,7 +470,7 @@ export const swapToToken = async (
   
   // ✅ Fix: Ensure the transaction is confirmed
 
-  const confirmation = await connection.confirmTransaction(txID,"finalized")
+  const confirmation = await connection.confirmTransaction(txID,"confirmed")
   
   if (confirmation.value.err) {
     console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
@@ -519,6 +519,78 @@ export async function getResult(filePath: string): Promise<any> {
     console.error("Error reading file:", err);
   }
 }
+
+export const rebalanceIndexTokens = async (
+  program: Program,
+  provider: anchor.Provider,
+  adminKeypair: Keypair,
+  programState: PublicKey,
+  indexMint: PublicKey,
+  indexInfo: PublicKey,
+  rebalanceInfo: PublicKey,
+  computeBudgetPayloads: any[],
+  swapPayload: any,
+  addressLookupTableAddresses: string[]
+) => {
+  let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+  const programAuthority = findProgramAuthority(program.programId);
+  const programWSOLAccount = findProgramWSOLAccount(program.programId);
+  const adminPublicKey = adminKeypair.publicKey;
+  const connection = provider.connection;
+
+  const instructions = [
+    ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
+    await program.methods
+      .rebalanceIndex(swapInstruction.data)
+      .accounts({
+        programAuthority: programAuthority,
+        programWsolAccount: programWSOLAccount,
+        userAccount: adminPublicKey,
+        solMint: NATIVE_MINT,
+        jupiterProgram: jupiterProgramId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+
+        programState: programState,
+        indexMint: indexMint,
+        indexInfo: indexInfo,
+        rebalanceInfo: rebalanceInfo,
+        priceUpdate: PYTH_NETWORK_PROGRAM_ID
+      })
+      .remainingAccounts(swapInstruction.keys)
+      .instruction(),
+  ];
+
+  const blockhash = (await connection.getLatestBlockhash()).blockhash;
+
+  // If you want, you can add more lookup table accounts
+  const addressLookupTableAccounts = await getAdressLookupTableAccounts(
+    connection,
+    addressLookupTableAddresses
+  );
+  const messageV0 = new TransactionMessage({
+    payerKey: adminPublicKey,
+    recentBlockhash: blockhash,
+    instructions,
+  // }).compileToV0Message(addressLookupTableAccounts);
+}).compileToV0Message();
+  const transaction = new VersionedTransaction(messageV0);
+
+  try {
+    // const txSimulationResponse = await provider.simulate(transaction, [
+    //   wallet.payer,
+    // ]);
+    // console.log({ txSimulationResponse });
+
+    const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
+    // console.log({ txID });
+    return txID;
+  } catch (e) {
+    console.log({ simulationResponse: e });
+    throw new Error("Failure during simulation");
+  }
+};
+
 
 export async function processJsonFile(filePath: string) {
   const jsonData = await getResult(filePath);

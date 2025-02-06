@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program, AnchorProvider } from "@coral-xyz/anchor";
-import {SwapResult} from "../types/index"
+import { Program } from "@coral-xyz/anchor";
+import { GroupCoin } from "../models/groupCoin";
 import {
   PublicKey,
   Keypair,
@@ -42,8 +42,9 @@ import {
   setResult,
   swapToSolana,
   swapToToken,
+  rebalanceIndexTokens,
 } from "./web3";
-import { connection } from "mongoose";
+
 // import { collect } from "./test";
 
 // import {
@@ -59,9 +60,21 @@ import { connection } from "mongoose";
 //   getPoolVaultAddress
 // } from "./pda";
 
+
+
 dotenv.config();
 
 const filePath = "./result.json";
+
+
+
+async function updateCoinAmount(groupCoinId: string, coinAddress: string, amount: number) {
+  await GroupCoin.updateOne(
+    { _id: groupCoinId, "coins.address": coinAddress }, // Find the document where the coin exists
+    { $inc: { "coins.$.amount": amount } } // Increment the `amount` field of the matched coin
+  );
+}
+
 
 function getAdminKeypair() {
   const adminPrivateKey = process.env.PRIVATE_KEY as string;
@@ -557,7 +570,9 @@ export async function swapToTkn(
   provider: anchor.Provider,
   mintKeypair: Keypair,
   tokenPublicKey: PublicKey,
-  amountInSol: number
+  amountInSol: number,
+  // groupCoinId: string,
+  // coinAddress: string,
   // keypair: Keypair
 ): Promise<string> {
   try{
@@ -568,12 +583,13 @@ export async function swapToTkn(
   let result: any = null;
 
   // Find the best Quote from the Jupiter API
-  const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
+  const quote: any = await getQuote(SOL, tokenPublicKey, amountInSol);
   console.log(quote, "quote")
   const tokenProgramId = await getTokenProgramId(
     provider.connection,
     tokenPublicKey
   );
+  
   // Convert the Quote into a Swap instruction
   const tokenAccount = getAssociatedTokenAddressSync(
     tokenPublicKey,
@@ -615,7 +631,7 @@ export async function swapToTkn(
     addressLookupTableAddresses
     // keypair
   );
-
+  // await updateCoinAmount(groupCoinId, coinAddress, quote.outAmount);
   return txID ;
   }catch(err){
     return null
@@ -906,6 +922,168 @@ export async function swapToSolEnd(
   }
 }
 
+
+export async function rebalanceIndexStart(
+  program: Program,
+  mintKeypair: Keypair,
+  weights: any
+) {
+  const mintPublicKey = mintKeypair.publicKey;
+
+  const accounts = {
+    programState: programState,
+    admin: adminPublicKey,
+    indexMint: mintPublicKey,
+    indexInfo: getIndexInfoPda(mintPublicKey),
+    rebalanceInfo: getRebalanceIndexInfoPda(mintPublicKey),
+    systemProgram: SYSTEM_PROGRAM_ID,
+  };
+  // console.log("accounts: ", accounts);
+
+  let txHash = await program.rpc.rebalanceIndexStart(weights, {
+    accounts: accounts,
+    signers: [adminKeypair],
+  });
+
+  return txHash;
+}
+
+export async function rebalanceIndex(
+  program: Program,
+  provider: anchor.Provider,
+  mintKeypair: Keypair,
+  tokenPublicKey: PublicKey,
+  buy: boolean,
+  amount: number
+) {
+  const mintPublicKey = mintKeypair.publicKey;
+
+  const SOL = new PublicKey("So11111111111111111111111111111111111111112");
+
+  let result: any = null;
+
+    let quote = null;
+    let tokenAccount = null;
+    if(buy) {
+      // Find the best Quote from the Jupiter API
+      quote = await getQuote(SOL, tokenPublicKey, amount);
+
+      // Convert the Quote into a Swap instruction
+      tokenAccount = getAssociatedTokenAddressSync(
+        tokenPublicKey,
+        adminPublicKey,
+        false,
+        TOKEN_PROGRAM_ID
+      );
+    } else {
+      // Find the best Quote from the Jupiter API
+      quote = await getQuote(tokenPublicKey, SOL, amount);
+
+      // Convert the Quote into a Swap instruction
+      tokenAccount = getAssociatedTokenAddressSync(
+        SOL,
+        adminPublicKey,
+        false,
+        TOKEN_PROGRAM_ID
+      );
+    }
+
+    result = await getSwapIx(adminPublicKey, tokenAccount, quote);
+
+    if ("error" in result) {
+      console.log({ result });
+      return result;
+    }
+  
+
+  // We have now both the instruction and the lookup table addresses.
+  const {
+    computeBudgetInstructions, // The necessary instructions to setup the compute budget.
+    swapInstruction, // The actual swap instruction.
+    addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
+  } = result;
+
+  if (buy) {
+    const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      adminKeypair,
+      SOL,
+      adminPublicKey,
+      false
+    );
+    const transaction1 = new Transaction();
+    transaction1.add(
+      SystemProgram.transfer({
+        fromPubkey: adminKeypair.publicKey, // Sender (authority) account
+        toPubkey: associatedTokenAddress.address, // Recipient account
+        lamports: amount, // Amount in lamports
+      })
+    );
+    // Sign and send the transaction
+    const txHash1 = await sendAndConfirmTransaction(
+      provider.connection,
+      transaction1,
+      [adminKeypair]
+    );
+    const syncNativeIx = createSyncNativeInstruction(
+      associatedTokenAddress.address
+    );
+    const { blockhash } = await provider.connection.getLatestBlockhash(
+      "confirmed"
+    );
+    // Create a transaction to transfer SOL and sync the native account
+    const transaction = new Transaction().add(syncNativeIx);
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = adminPublicKey;
+    // Sign and send the transaction
+    const signature = await sendAndConfirmTransaction(
+      provider.connection,
+      transaction,
+      [adminKeypair]
+    );
+  }
+
+  const txHash = await rebalanceIndexTokens(
+    program,
+    provider,
+    adminKeypair,
+    programState,
+    mintPublicKey,
+    getIndexInfoPda(mintPublicKey),
+    getRebalanceIndexInfoPda(mintPublicKey),
+    computeBudgetInstructions,
+    swapInstruction,
+    addressLookupTableAddresses
+  );
+
+  return txHash;
+}
+
+export async function rebalanceIndexEnd(
+  program: Program,
+  mintKeypair: Keypair
+) {
+  const mintPublicKey = mintKeypair.publicKey;
+
+  const accounts = {
+    programState: programState,
+    admin: adminPublicKey,
+    indexMint: mintPublicKey,
+    indexInfo: getIndexInfoPda(mintPublicKey),
+    rebalanceInfo: getRebalanceIndexInfoPda(mintPublicKey),
+    systemProgram: SYSTEM_PROGRAM_ID,
+  };
+  // console.log("accounts: ", accounts);
+
+  let txHash = await program.rpc.rebalanceIndexEnd({
+    accounts: accounts,
+    signers: [adminKeypair],
+  });
+
+  return txHash;
+}
+
+
 async function createAndGetTokenAccount(
   program: Program,
   publicKey: anchor.web3.PublicKey,
@@ -934,6 +1112,15 @@ async function createAndGetTokenAccount(
   return tokenAccount;
 }
 
+function getRebalanceIndexInfoPda(indexMint: PublicKey) {
+  const programId = getProgramId();
+  const [rebalanceIndexInfoPdaAccount] = PublicKey.findProgramAddressSync(
+    [anchor.utils.bytes.utf8.encode("rebalance"), indexMint.toBuffer()],
+    programId
+  );
+
+  return rebalanceIndexInfoPdaAccount;
+}
 
 async function airdrop(connection: Connection, publicKey: PublicKey, amount: number) {
   const signature = await connection.requestAirdrop(

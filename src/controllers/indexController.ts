@@ -14,6 +14,8 @@ import moment, { Moment } from "moment";
 import { getAllIntervals, getOrUpdateFund } from "../utils";
 import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
+import { addEventToQueue } from '../queue/eventQueue';
+import { RebalanceEvent } from "../types";
 
 const indexController = () => {
   const groupIndexService = indexService();
@@ -425,12 +427,40 @@ const indexController = () => {
     }
   };
 
+  const rebalance = async (req: Request, res: Response) => {
+    logger.info(`indexController create an index`);
+    try {
+      const {
+        id,
+
+      } = req.body;
+      // const eventData: RebalanceEvent =  {
+      //   indexId: id,
+      // } 
+      
+      // console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
+      // console.log(eventData, "rebalance eventData")
+      // // Add event to the Bull queue
+      // await addEventToQueue('RebalanceIndex', eventData);
+
+    }catch(err){
+      logger.error(`Error in rebalance ==> `, err.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: err.message,
+        statusCode: 500,
+      });
+    }
+  }
+
   return {
     getAllIndex,
     createIndex,
     getIndexById,
     updateIndex,
-    getIndexGraph
+    getIndexGraph,
+    rebalance
   };
 };
 

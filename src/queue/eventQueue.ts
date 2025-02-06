@@ -50,6 +50,10 @@ eventQueue.process(async (job: Job<JobData>) => {
         await handleSellIndexEvent(eventData);
         break;
 
+      // case 'RebalanceIndex':
+      //   await handleRebalance(eventData);
+      //   break;
+
       default:
         console.log(`Unknown event: ${eventName}`);
     }
