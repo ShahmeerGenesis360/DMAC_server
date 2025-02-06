@@ -325,8 +325,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               console.log(coin.coinName, coin.address, "name address")
               tokenDecimals = decimals[coin.coinName]
               console.log(tokenPrice, tokenDecimals, "decimal")
-              amount = ((((Number(eventData.withdrawn)+ 
-              Number(eventData.adminFee)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
+              amount = ((((Number(eventData.withdrawn)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
               console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
@@ -482,5 +481,6 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         throw error
     }
 }
+
 
 export {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue}

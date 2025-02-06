@@ -36,3 +36,8 @@ export type SwapResult = {
   transaction1: VersionedTransaction;
   instructions: anchor.web3.TransactionInstruction[]
 };
+
+export type RebalanceEvent = {
+  indexId: string,
+  weight: []
+}

@@ -5,6 +5,7 @@ export interface ICoin extends Document {
   coinName: string;
   address: string;
   proportion: number;
+  amount: number;
 }
 
 export interface IFaq extends Document {
@@ -39,6 +40,7 @@ const coinSchema = new Schema<ICoin>(
     proportion: { type: Number, required: true },
     coinName: { type: String, required: true },
     address: { type: String, required: true },
+    amount: { type: Number, default: 0 ,required: false },
   },
   { _id: false } // Prevent Mongoose from creating a separate _id for each subdocument
 );
