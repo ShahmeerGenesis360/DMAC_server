@@ -11,7 +11,7 @@ import {
 } from "../socket/price/helper";
 import { GroupCoinHistory } from "../models/groupCoinHistory";
 import moment, { Moment } from "moment";
-import { getAllIntervals, getOrUpdateFund } from "../utils";
+import { getAllIntervals, getOrUpdateFund, groupDataByDay } from "../utils";
 import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
 
@@ -493,26 +493,26 @@ const indexController = () => {
 
       // Use reduce to calculate the total amount for the interval
       const { totalBuy, totalSell, totalVolume, buyAmount, sellAmount } =
-            twenty4hour.reduce(
-              (acc, item) => {
-                if (item.type === "deposit") {
-                  acc.totalBuy += 1; // Add amount or default to 0 if undefined
-                  acc.buyAmount += item.amount;
-                } else {
-                  acc.totalSell += 1; // Add amount or default to 0 if undefined
-                  acc.sellAmount += item.amount;
-                }
-                acc.totalVolume += item.amount;
-                return acc; // Ensure accumulator is returned
-              },
-              {
-                totalBuy: 0,
-                totalSell: 0,
-                totalVolume: 0,
-                buyAmount: 0,
-                sellAmount: 0,
-              } // Correctly formatted initial accumulator
-            );
+        twenty4hour.reduce(
+          (acc, item) => {
+            if (item.type === "deposit") {
+              acc.totalBuy += 1; // Add amount or default to 0 if undefined
+              acc.buyAmount += item.amount;
+            } else {
+              acc.totalSell += 1; // Add amount or default to 0 if undefined
+              acc.sellAmount += item.amount;
+            }
+            acc.totalVolume += item.amount;
+            return acc; // Ensure accumulator is returned
+          },
+          {
+            totalBuy: 0,
+            totalSell: 0,
+            totalVolume: 0,
+            buyAmount: 0,
+            sellAmount: 0,
+          } // Correctly formatted initial accumulator
+        );
       console.log("total 24 hr volume ", {
         totalValue,
         totalBuy,
@@ -631,7 +631,9 @@ const indexController = () => {
       const oneHourAgo = moment().subtract(1, "hour");
       const today = moment().format("YYYY-MM-DD");
       const sevenDaysAgo = moment().subtract(7, "days");
-
+      const start: Moment = moment(now).subtract(6, "days");
+      // Assume getAllIntervals is defined elsewhere with proper typing
+      const allIntervals: string[] = await getAllIntervals(start, now, 7);
       // Fetch all indexes
       const allIndexes = await GroupCoin.find();
 
@@ -688,6 +690,22 @@ const indexController = () => {
                 )
               : 0;
 
+          const viewsArray = [];
+          for (let counter = 0; counter < allIntervals.length; counter++) {
+            const results = await GroupCoinHistory.find({
+              indexId: index._id,
+              createdAt: {
+                $gt: allIntervals[counter],
+                $lt: allIntervals[counter + 1] || now,
+              },
+            });
+
+            viewsArray.push({
+              ...groupDataByDay(results)?.[0],
+              time: allIntervals[counter],
+            });
+          }
+
           return {
             _id: index._id,
             name: index.name,
@@ -703,6 +721,7 @@ const indexController = () => {
             a1H: percentage1h,
             a1D: percentage24h,
             a1W: percentage7d,
+            graph: viewsArray, // daily chart
           };
         })
       );

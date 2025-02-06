@@ -106,9 +106,101 @@ export const getAllIntervals = async (
 
 export async function getOrUpdateFund(id: unknown) {
   let fund = await IndexFund.findOne({ indexId: id });
-  console.log("fund", fund)
+  console.log("fund", fund);
   if (!fund) {
     fund = new IndexFund({ indexId: id });
   }
   return fund;
 }
+
+// export const groupDataByMinute = (tickData: any[]) => {
+//   const groupedData = new Map();
+
+//   tickData.forEach(({ createdAt: time, price }) => {
+//     const date = new Date(time);
+//     const key = `${date.getUTCFullYear()}-${
+//       date.getUTCMonth() + 1
+//     }-${date.getUTCDate()} ${date.getUTCHours()}:${date.getUTCMinutes()}`; // Group by year-month-day hour:minute
+
+//     if (!groupedData.has(key)) {
+//       groupedData.set(key, {
+//         open: price,
+//         high: price,
+//         low: price,
+//         close: price,
+//       });
+//     } else {
+//       const candle = groupedData.get(key);
+//       candle.high = Math.max(candle.high, price);
+//       candle.low = Math.min(candle.low, price);
+//       candle.close = price;
+//       groupedData.set(key, candle);
+//     }
+//   });
+
+//   return Array.from(groupedData.entries()).map(
+//     ([key, { open, high, low, close }]) => {
+//       const [datePart, timePart] = key.split(" ");
+//       const [year, month, day] = datePart.split("-").map(Number);
+//       const [hour, minute] = timePart.split(":").map(Number);
+
+//       return {
+//         time: { year, month, day, hour, minute },
+//         open,
+//         high,
+//         low,
+//         close,
+//       };
+//     }
+//   );
+// };
+export const groupDataByDay = (tickData: any[]) => {
+  const groupedData = new Map();
+  if (!tickData.length) {
+    return [
+      {
+        time: { year: 0, month: 0, day: 0 },
+        open: 0,
+        high: 0,
+        low: 0,
+        close: 0,
+      },
+    ];
+  }
+
+  tickData.forEach(({ createdAt, price }) => {
+    const date = new Date(createdAt);
+    const key = `${date.getUTCFullYear()}-${
+      date.getUTCMonth() + 1
+    }-${date.getUTCDate()}`; // Format: YYYY-MM-DD
+
+    if (!groupedData.has(key)) {
+      groupedData.set(key, {
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+      });
+    } else {
+      const candle = groupedData.get(key);
+      candle.high = Math.max(candle.high, price);
+      candle.low = Math.min(candle.low, price);
+      candle.close = price; // Last recorded price of the day
+      groupedData.set(key, candle);
+    }
+  });
+
+  return Array.from(groupedData.entries()).map(
+    ([key, { open, high, low, close }]) => {
+      const [year, month, day] = key.split("-").map(Number);
+
+      return {
+        time: { year, month, day }, // Lightweight Charts format
+        open,
+        high,
+        low,
+        close,
+      };
+    }
+  );
+};
