@@ -13,6 +13,7 @@ indexRouter.get(
   decodeTokenFromAdminRequest,
   index.getAllIndexPaginated
 );
+indexRouter.get("/tvl", index.tvlGraph);
 indexRouter.get("/:id", index.getIndexById);
 indexRouter.post("/details/:id", index.getIndexGraph);
 indexRouter.post("/", upload.single("file"), index.createIndex);

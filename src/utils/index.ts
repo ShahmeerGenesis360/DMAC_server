@@ -82,25 +82,46 @@ export const decodeTokenFromAdminRequest = (
   }
 };
 
+// export const getAllIntervals = async (
+//   start: Moment,
+//   end: Moment,
+//   intervals: number
+// ): Promise<string[]> => {
+//   const arr: string[] = [];
+//   const difference: number = end.diff(start, "days") / intervals;
+
+//   arr.push(moment(start).format("MMM DD, YYYY"));
+//   let prev: Moment = start;
+
+//   for (let index = 1; index < intervals - 1; index++) {
+//     const newDate: Moment = moment(prev).add(difference, "days");
+//     const formattedDate: string = newDate.format("MMM DD, YYYY");
+//     arr.push(formattedDate);
+//     prev = newDate;
+//   }
+
+//   arr.push(moment(end).format("MMM DD, YYYY"));
+//   return arr;
+// };
+
 export const getAllIntervals = async (
   start: Moment,
   end: Moment,
   intervals: number
-): Promise<string[]> => {
-  const arr: string[] = [];
+): Promise<Date[]> => {
+  const arr: Date[] = [];
   const difference: number = end.diff(start, "days") / intervals;
 
-  arr.push(moment(start).format("MMM DD, YYYY"));
+  arr.push(start.toDate()); // Store actual Date objects
   let prev: Moment = start;
 
   for (let index = 1; index < intervals - 1; index++) {
     const newDate: Moment = moment(prev).add(difference, "days");
-    const formattedDate: string = newDate.format("MMM DD, YYYY");
-    arr.push(formattedDate);
+    arr.push(newDate.toDate());
     prev = newDate;
   }
 
-  arr.push(moment(end).format("MMM DD, YYYY"));
+  arr.push(end.toDate());
   return arr;
 };
 

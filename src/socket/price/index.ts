@@ -10,7 +10,7 @@ import { GroupCoinHistory } from "../../models/groupCoinHistory";
 const getTimeFrame = async (time: "1D" | "1W" | "1M" | "3M") => {
   const end: Moment = moment();
   let start: Moment;
-  let allIntervals: string[];
+  let allIntervals: Date[];
 
   switch (time) {
     case "1D":

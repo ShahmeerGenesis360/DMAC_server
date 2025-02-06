@@ -14,7 +14,7 @@ import moment, { Moment } from "moment";
 import { getAllIntervals, getOrUpdateFund, groupDataByDay } from "../utils";
 import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
-import { addEventToQueue } from '../queue/eventQueue';
+import { addEventToQueue } from "../queue/eventQueue";
 import { RebalanceEvent } from "../types";
 
 const indexController = () => {
@@ -375,7 +375,7 @@ const indexController = () => {
   const getTimeFrame = async (time: "1D" | "1W" | "1M" | "3M") => {
     const end: Moment = moment();
     let start: Moment;
-    let allIntervals: string[];
+    let allIntervals: any[];
 
     switch (time) {
       case "1D":
@@ -630,20 +630,16 @@ const indexController = () => {
   const rebalance = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const {
-        id,
-
-      } = req.body;
+      const { id } = req.body;
       // const eventData: RebalanceEvent =  {
       //   indexId: id,
-      // } 
-      
+      // }
+
       // console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
       // console.log(eventData, "rebalance eventData")
       // // Add event to the Bull queue
       // await addEventToQueue('RebalanceIndex', eventData);
-
-    }catch(err){
+    } catch (err) {
       logger.error(`Error in rebalance ==> `, err.message);
       sendErrorResponse({
         req,
@@ -652,7 +648,7 @@ const indexController = () => {
         statusCode: 500,
       });
     }
-  }
+  };
 
   const getAllIndexV2 = async (req: Request, res: Response) => {
     try {
@@ -662,7 +658,7 @@ const indexController = () => {
       const sevenDaysAgo = moment().subtract(7, "days");
       const start: Moment = moment(now).subtract(6, "days");
       // Assume getAllIntervals is defined elsewhere with proper typing
-      const allIntervals: string[] = await getAllIntervals(start, now, 7);
+      const allIntervals: Date[] = await getAllIntervals(start, now, 7);
       // Fetch all indexes
       const allIndexes = await GroupCoin.find();
 
@@ -768,6 +764,100 @@ const indexController = () => {
     }
   };
 
+  const tvlGraph = async (req: Request, res: Response) => {
+    try {
+      const { type } = req.query;
+
+      // Validate the 'type' query parameter with proper type assertion and checking
+      if (!["daily", "weekly", "monthly"].includes(type as string)) {
+        return res.status(400).json({ error: "Invalid type" });
+      }
+
+      // Define a type for allowed types
+      type DateRangeKey = "daily" | "weekly" | "monthly";
+
+      // Map the string keys to their respective date ranges
+      const dateRange: Record<DateRangeKey, number> = {
+        daily: 6,
+        weekly: 6 * 7,
+        monthly: 31 * 7,
+      };
+
+      // Ensure 'type' is treated as a valid key from the `dateRange` object
+      const dateRangeKey = type as DateRangeKey;
+
+      // Set the end date to today's date
+      const end: Moment = moment();
+
+      // Calculate the start date by subtracting the specified range from the end date
+      console.log(">> :", dateRange[dateRangeKey]);
+      const start: Moment = moment(end).subtract(
+        dateRange[dateRangeKey],
+        "days"
+      );
+
+      // Assume getAllIntervals is defined elsewhere with proper typing
+      const allIntervals: Date[] = await getAllIntervals(start, end, 7);
+      console.log({ allIntervals });
+      const allIndexes = await GroupCoin.find();
+
+      const data = await Promise.all(
+        allIndexes.map(async (index) => {
+          const viewsArray = [];
+          for (let counter = 0; counter < allIntervals.length; counter++) {
+            const result = await Record.aggregate([
+              {
+                $match: {
+                  indexCoin: index._id, // Filter for a specific indexCoin
+                  createdAt: {
+                    $gt: allIntervals[counter],
+                    $lt: allIntervals[counter + 1] || end,
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: "$indexCoin", // Group by unique holder ID
+                  indexCoin: { $first: "$indexCoin" }, // Retain indexCoin for later grouping
+                  totalDeposit: {
+                    $sum: {
+                      $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                    },
+                  },
+                  totalWithdrawal: {
+                    $sum: {
+                      $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                    },
+                  },
+                },
+              },
+            ]);
+            viewsArray.push({
+              startDate: allIntervals[counter],
+              indexCoin: result?.[0]?.indexCoin || index._id,
+              totalDeposit: result?.[0]?.totalDeposit ?? 0,
+              totalWithdrawal: result?.[0]?.totalWithdrawal ?? 0,
+            });
+          }
+
+          return {
+            indexId: index._id,
+            graph: viewsArray,
+          };
+        })
+      );
+
+      sendSuccessResponse({
+        res,
+        data: data,
+        message: "Fetched all indexes successfully",
+      });
+    } catch (error) {
+      console.error("Error fetching TVL graph data:", error);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  };
+
   return {
     getAllIndex: getAllIndexV2,
     createIndex,
@@ -776,6 +866,7 @@ const indexController = () => {
     getIndexGraph,
     rebalance,
     getAllIndexPaginated,
+    tvlGraph,
   };
 };
 

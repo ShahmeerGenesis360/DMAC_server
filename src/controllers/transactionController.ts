@@ -36,7 +36,7 @@ const transactionController = () => {
     const start: Moment = moment(end).subtract(dateRange[dateRangeKey], "days");
 
     // Assume getAllIntervals is defined elsewhere with proper typing
-    const allIntervals: string[] = await getAllIntervals(start, end, 7);
+    const allIntervals: Date[] = await getAllIntervals(start, end, 7);
 
     // Log or return the intervals as required
     console.log("All Intervals length:", allIntervals?.length);
@@ -84,7 +84,7 @@ const transactionController = () => {
     const start: Moment = moment(end).subtract(30, "days");
 
     // Assume getAllIntervals is defined elsewhere with proper typing
-    const allIntervals: string[] = await getAllIntervals(start, end, 31);
+    const allIntervals: Date[] = await getAllIntervals(start, end, 31);
 
     // Log or return the intervals as required
     console.log("All Intervals length:", allIntervals?.length);
