@@ -427,7 +427,7 @@ const indexController = () => {
           results.length > 0 ? results[results.length - 1].price : 0;
 
         viewsArray.push({
-          startDate: allIntervals[index]?.split(",")[0],
+          startDate: moment(allIntervals[index]).format("MMM DD"),
           totalAmount: averageAmount,
         });
       }
@@ -834,7 +834,7 @@ const indexController = () => {
               },
             ]);
             viewsArray.push({
-              startDate: allIntervals[counter],
+              startDate: moment(allIntervals[counter]).format("MMM DD"),
               indexCoin: result?.[0]?.indexCoin || index._id,
               totalDeposit: result?.[0]?.totalDeposit ?? 0,
               totalWithdrawal: result?.[0]?.totalWithdrawal ?? 0,
@@ -843,7 +843,7 @@ const indexController = () => {
 
           return {
             indexId: index._id,
-            graph: viewsArray,
+            ...viewsArray,
           };
         })
       );

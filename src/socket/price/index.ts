@@ -52,7 +52,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
         if (groupcoin === undefined) return;
         const now = moment();
         const starts: Moment = moment(now).subtract(6, "days");
-        const allGraphIntervals: string[] = await getAllIntervals(
+        const allGraphIntervals: Date[] = await getAllIntervals(
           starts,
           now,
           7

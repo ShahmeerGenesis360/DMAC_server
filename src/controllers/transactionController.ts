@@ -65,7 +65,7 @@ const transactionController = () => {
         );
 
         viewsArray.push({
-          startDate: allIntervals[index],
+          startDate: moment(allIntervals[index]).format("MMM DD"),
           totaldeposit,
           totalwithdrawl,
         });
@@ -106,7 +106,7 @@ const transactionController = () => {
         );
 
         viewsArray.push({
-          startDate: allIntervals[index],
+          startDate: moment(allIntervals[index]).format("MMM DD"),
           totalAmount,
         });
       }
