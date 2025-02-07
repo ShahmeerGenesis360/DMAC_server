@@ -179,26 +179,26 @@ async function handleBuyIndexQueue(
         } 
       }
 
-      let createwsolTxId = null;
-      let entries = 0;
-      while(entries < MAX_RETRIES){
-        console.log("wsol sending")
-        entries += 1;
-        console.log(`Attempt #${attempt}`);
-        createwsolTxId = await createWsol(program, mintkeypair, keypair, provider as Provider);
-        if (createwsolTxId !== null) {
-          console.log(`Transaction completed successfully: ${createwsolTxId}`);
-          break;
-        }
-        else{
-          console.log(`Attempt Failed :( `)
-          if(attempt==MAX_RETRIES){
-            console.log(`Transaction failed after MAX attempt`)
-            return
+      // let createwsolTxId = null;
+      // let entries = 0;
+      // while(entries < MAX_RETRIES){
+      //   console.log("wsol sending")
+      //   entries += 1;
+      //   console.log(`Attempt #${attempt}`);
+      //   createwsolTxId = await createWsol(program, mintkeypair, keypair, provider as Provider);
+      //   if (createwsolTxId !== null) {
+      //     console.log(`Transaction completed successfully: ${createwsolTxId}`);
+      //     break;
+      //   }
+      //   else{
+      //     console.log(`Attempt Failed :( `)
+      //     if(attempt==MAX_RETRIES){
+      //       console.log(`Transaction failed after MAX attempt`)
+      //       return
             
-          }
-        }
-      }
+      //     }
+      //   }
+      // }
       
 
       for (const coin of index.coins) {
