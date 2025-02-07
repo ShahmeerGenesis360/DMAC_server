@@ -8,5 +8,6 @@ userRouter.post("/", user.getOrCreateUser);
 userRouter.patch("/", decodeTokenFromRequest, user.updateUser);
 userRouter.get("/", decodeTokenFromRequest, user.getUserbyToken);
 userRouter.get("/all", decodeTokenFromAdminRequest, user.getAllUsers);
+userRouter.get('/user-stats', decodeTokenFromAdminRequest, user.getUserStats);
 
 export default userRouter;

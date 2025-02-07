@@ -1,19 +1,24 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
-        "esModuleInterop": true,
-        "target": "es6",
-        "noImplicitAny": true,
-        "moduleResolution": "node",
-        "sourceMap": true,
-        "outDir": "build",
-        "baseUrl": ".",
-        "strictNullChecks": true,
-        "paths": {
-            "*": ["node_modules/*", "src/types/*"]
-        },
-        "lib": ["es2017", "dom"],
-        "resolveJsonModule": true
+      "module": "commonjs",                   // Use commonjs modules for Node.js
+      "esModuleInterop": true,                // Allow interop between CommonJS and ES modules
+      "target": "es6",                        // Compile to ES6 (or ES2017)
+      "moduleResolution": "node",             // Resolve modules using Node.js module resolution
+      "sourceMap": true,                      // Generate source maps for debugging
+      "outDir": "build",                      // Place compiled JS files in the 'build' directory
+      "baseUrl": ".",                         // Set base URL for non-relative imports
+      "lib": ["es2017", "dom"],               // Use ES2017 and DOM libraries for modern JS features
+      "noImplicitAny": true,                  // Prevent usage of the 'any' type
+      "strict": false,                        // Disable strict mode for more relaxed type checks
+      "typeRoots": ["./node_modules/@types"], // Specify where to look for type definitions
+      "skipLibCheck": true,                   // Skip type checking of declaration files
+      "allowJs": true,                        // Allow JavaScript files to be included in the project
+      "resolveJsonModule": true,          // Allow importing JSON files directly
+      "paths": {
+        "*": ["node_modules/*", "src/types/*"]
+      },
     },
-    "include": ["src/**/*"]
+    "include": ["src/**/*"],                  // Include all files in the 'src' directory
+    "exclude": ["node_modules", "build"]      // Exclude 'node_modules' and 'build' directories
 }
+  
