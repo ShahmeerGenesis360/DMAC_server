@@ -652,6 +652,12 @@ const indexController = () => {
 
   const getAllIndexV2 = async (req: Request, res: Response) => {
     try {
+      const { page = 1, pageSize = 5 } = req.query;
+      const rtoday = new Date();
+      rtoday.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+      const tomorrow = new Date(rtoday);
+      tomorrow.setUTCDate(rtoday.getUTCDate() + 1); // Start of the next day
+
       const now = moment();
       const oneHourAgo = moment().subtract(1, "hour");
       const today = moment().format("YYYY-MM-DD");
@@ -660,7 +666,14 @@ const indexController = () => {
       // Assume getAllIntervals is defined elsewhere with proper typing
       const allIntervals: Date[] = await getAllIntervals(start, now, 7);
       // Fetch all indexes
-      const allIndexes = await GroupCoin.find();
+      const totalRecords = await GroupCoin.countDocuments();
+
+      // Calculate total pages
+      const totalPages = Math.ceil(totalRecords / +pageSize);
+
+      const allIndexes = await GroupCoin.find()
+        .skip((+page - 1) * +pageSize)
+        .limit(+pageSize);
 
       // Process each index asynchronously
       const allIndexData = await Promise.all(
@@ -730,7 +743,73 @@ const indexController = () => {
               time: allIntervals[counter],
             });
           }
+          const twenty4hour = await Record.find({
+            indexCoin: index._id,
+            createdAt: {
+              $gte: rtoday, // Greater than or equal to today
+              $lt: tomorrow, // Less than tomorrow
+            },
+          });
+          const totalValue = twenty4hour?.reduce(
+            (acc: number, item: IRecord) => acc + item.amount,
+            0
+          );
+          const uniqueHolders = await Record.aggregate([
+            {
+              $match: {
+                indexCoin: index._id, // Filter for specific indexCoin
+              },
+            },
+            {
+              $group: {
+                _id: "$tokenAddress", // Group by wallet address
+                indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+                totalDeposit: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                  },
+                },
+                totalWithdrawal: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                  },
+                },
+              },
+            },
+            {
+              $addFields: {
+                netBalance: {
+                  $subtract: ["$totalDeposit", "$totalWithdrawal"],
+                }, // Deposit - Withdrawal
+              },
+            },
+            {
+              $match: {
+                netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+              },
+            },
+            {
+              $group: {
+                _id: "$indexCoin", // Group by indexCoin to get unique count per index
+                holders: { $sum: 1 }, // Count unique holders
+              },
+            },
+          ]);
 
+          // Use reduce to calculate the total amount for the interval
+          const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
+            (acc, item) => {
+              if (item.type === "deposit") {
+                acc.totalBuy += 1; // Add amount or default to 0 if undefined
+              } else {
+                acc.totalSell += 1; // Add amount or default to 0 if undefined
+              }
+              acc.totalVolume += item.amount;
+              return acc; // Ensure accumulator is returned
+            },
+            { totalBuy: 0, totalSell: 0, totalVolume: 0 } // Correctly formatted initial accumulator
+          );
+          const fund = await getOrUpdateFund(index._id);
           return {
             _id: index._id,
             name: index.name,
@@ -748,13 +827,31 @@ const indexController = () => {
             a1D: percentage24h,
             a1W: percentage7d,
             graph: viewsArray, // daily chart
+            info: {
+              totalValue,
+              totalBuy,
+              totalSell,
+              totalVolume,
+              price:
+                fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+              totalSupply: fund.totalSupply,
+              indexWorth: fund.indexWorth,
+              totalHolder: uniqueHolders[0]?.holders || 0,
+            },
           };
         })
       );
 
       sendSuccessResponse({
         res,
-        data: allIndexData,
+        data: {
+          indexes: allIndexData,
+          meta: {
+            totalRecords,
+            totalPages,
+            currentPage: page,
+          },
+        },
         message: "Fetched all indexs successfully",
       });
     } catch (err) {
