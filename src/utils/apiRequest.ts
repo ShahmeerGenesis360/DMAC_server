@@ -44,7 +44,7 @@ import {
   swapToToken,
   rebalanceIndexTokens,
 } from "./web3";
-
+import * as borsh from "@coral-xyz/borsh";
 // import { collect } from "./test";
 
 // import {
@@ -67,6 +67,22 @@ dotenv.config();
 const filePath = "./result.json";
 
 
+const indexInfoSchema = borsh.struct([
+  // 📌 Skip `indexTokens` and `feeCollectors`
+  
+  borsh.f64("totalValue"),        // 8 bytes
+  borsh.f64("totalSupply"),       // 8 bytes
+
+  // 📌 Read the name length first
+  borsh.u32("nameLength"),        // 4 bytes
+  borsh.str("name"),           // Variable-length
+
+  borsh.u8("status"),             // 1 byte
+  borsh.i64("lastRebalanceTs"),   // 8 bytes
+  borsh.u64("solToSwap"),         // 8 bytes
+  borsh.u64("solToSwapFee"),      // 8 bytes
+  borsh.u8("bump"),               // 1 byte
+]);
 
 async function updateCoinAmount(groupCoinId: string, coinAddress: string, amount: number) {
   await GroupCoin.updateOne(
@@ -106,6 +122,75 @@ function getIndexInfoPda(indexMint: PublicKey) {
 
   return indexInfoPdaAccount;
 }
+
+const getIndexInfoPDA = (indexMint: PublicKey, programId: PublicKey): PublicKey => {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("index_info"),  // ✅ Matches the seed used on-chain
+      indexMint.toBuffer()        // ✅ Uses the index mint's public key
+    ],
+    programId
+  );
+  return pda;
+};
+
+export const fetchIndexInfo = async (connection: Connection, indexMint: PublicKey, programId: PublicKey) => {
+  try {
+    const pda = getIndexInfoPDA(indexMint, programId);
+    console.log("Derived PDA:", pda.toBase58());
+
+    const accountInfo = await connection.getAccountInfo(pda);
+    if (!accountInfo) {
+      console.error("❌ Account not found");
+      return null;
+    }
+
+    // 🔍 Log raw data for debugging
+    console.log("🔹 Raw Account Data (Hex):", accountInfo.data.toString("hex").slice(0, 100));
+    console.log("🔹 Raw Account Data Length:", accountInfo.data.length);
+
+    // 🛠 Decode only the required fields
+    let decodedData = indexInfoSchema.decode(accountInfo.data);
+
+    console.log("✅ Decoded IndexInfo:", decodedData);
+    return decodedData;
+  } catch (error) {
+    console.error("❌ Error fetching IndexInfo:", error);
+    return null;
+  }
+};
+
+
+
+
+// export const fetchIndexInfo = async (connection: Connection, indexMint: PublicKey) => {
+//   try {
+//     const pda = getIndexInfoPda(indexMint);
+//     console.log("Derived PDA:", pda.toBase58());
+
+//     // Fetch account info
+//     const accountInfo = await connection.getAccountInfo(pda);
+//     console.log(accountInfo, "accountInfo")
+
+   
+
+//     if (!accountInfo) {
+//       console.error("Account not found");
+//       return null;
+//     }
+
+//     // Deserialize the account data
+
+//     const decodedData = indexInfoSchema.decode(accountInfo.data);
+    
+//     console.log("Decoded IndexInfo:", decodedData);
+
+//     return decodedData;
+//   } catch (error) {
+//     console.error("Error fetching IndexInfo:", error);
+//     return null;
+//   }
+// };
 
 function getSwapToTknInfoPda(indexMint: PublicKey) {
   const programId = getProgramId();
@@ -926,26 +1011,42 @@ export async function swapToSolEnd(
 export async function rebalanceIndexStart(
   program: Program,
   mintKeypair: Keypair,
-  weights: any
+  weights: any,
+  provider: anchor.Provider,
 ) {
-  const mintPublicKey = mintKeypair.publicKey;
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
 
-  const accounts = {
-    programState: programState,
-    admin: adminPublicKey,
-    indexMint: mintPublicKey,
-    indexInfo: getIndexInfoPda(mintPublicKey),
-    rebalanceInfo: getRebalanceIndexInfoPda(mintPublicKey),
-    systemProgram: SYSTEM_PROGRAM_ID,
-  };
-  // console.log("accounts: ", accounts);
+    const accounts = {
+      programState: programState,
+      admin: adminPublicKey,
+      indexMint: mintPublicKey,
+      indexInfo: getIndexInfoPda(mintPublicKey),
+      rebalanceInfo: getRebalanceIndexInfoPda(mintPublicKey),
+      systemProgram: SYSTEM_PROGRAM_ID,
+    };
+    // console.log("accounts: ", accounts);
 
-  let txHash = await program.rpc.rebalanceIndexStart(weights, {
-    accounts: accounts,
-    signers: [adminKeypair],
-  });
+    let txHash = await program.rpc.rebalanceIndexStart(weights, {
+      accounts: accounts,
+      signers: [adminKeypair],
+    });
 
-  return txHash;
+    const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
+    
+    if (confirmation.value.err) {
+      console.error(`Transaction failed: ${txHash}`)
+      return null
+    } else {
+      console.log(`Transaction confirmed: ${txHash}`);
+      return txHash; // Exit the retry loop if successful
+    }
+
+  }catch(err){
+    console.log(JSON.stringify(err))
+    return null;
+  }
+ 
 }
 
 export async function rebalanceIndex(
@@ -956,107 +1057,115 @@ export async function rebalanceIndex(
   buy: boolean,
   amount: number
 ) {
-  const mintPublicKey = mintKeypair.publicKey;
+  try{
 
-  const SOL = new PublicKey("So11111111111111111111111111111111111111112");
+    const mintPublicKey = mintKeypair.publicKey;
 
-  let result: any = null;
+    const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-    let quote = null;
-    let tokenAccount = null;
-    if(buy) {
-      // Find the best Quote from the Jupiter API
-      quote = await getQuote(SOL, tokenPublicKey, amount);
+    let result: any = null;
 
-      // Convert the Quote into a Swap instruction
-      tokenAccount = getAssociatedTokenAddressSync(
-        tokenPublicKey,
-        adminPublicKey,
-        false,
-        TOKEN_PROGRAM_ID
-      );
-    } else {
-      // Find the best Quote from the Jupiter API
-      quote = await getQuote(tokenPublicKey, SOL, amount);
+      let quote = null;
+      let tokenAccount = null;
+      if(buy) {
+        // Find the best Quote from the Jupiter API
+        quote = await getQuote(SOL, tokenPublicKey, amount);
 
-      // Convert the Quote into a Swap instruction
-      tokenAccount = getAssociatedTokenAddressSync(
+        // Convert the Quote into a Swap instruction
+        tokenAccount = getAssociatedTokenAddressSync(
+          tokenPublicKey,
+          adminPublicKey,
+          false,
+          TOKEN_PROGRAM_ID
+        );
+      } else {
+        // Find the best Quote from the Jupiter API
+        quote = await getQuote(tokenPublicKey, SOL, amount);
+
+        // Convert the Quote into a Swap instruction
+        tokenAccount = getAssociatedTokenAddressSync(
+          SOL,
+          adminPublicKey,
+          false,
+          TOKEN_PROGRAM_ID
+        );
+      }
+
+      result = await getSwapIx(adminPublicKey, tokenAccount, quote);
+
+      if ("error" in result) {
+        console.log({ result });
+        return null;
+      }
+    
+
+    // We have now both the instruction and the lookup table addresses.
+    const {
+      computeBudgetInstructions, // The necessary instructions to setup the compute budget.
+      swapInstruction, // The actual swap instruction.
+      addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
+    } = result;
+
+    if (buy) {
+      const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
+        provider.connection,
+        adminKeypair,
         SOL,
         adminPublicKey,
-        false,
-        TOKEN_PROGRAM_ID
+        false
+      );
+      const transaction1 = new Transaction();
+      transaction1.add(
+        SystemProgram.transfer({
+          fromPubkey: adminKeypair.publicKey, // Sender (authority) account
+          toPubkey: associatedTokenAddress.address, // Recipient account
+          lamports: amount, // Amount in lamports
+        })
+      );
+      // Sign and send the transaction
+      const txHash1 = await sendAndConfirmTransaction(
+        provider.connection,
+        transaction1,
+        [adminKeypair]
+      );
+      const syncNativeIx = createSyncNativeInstruction(
+        associatedTokenAddress.address
+      );
+      const { blockhash } = await provider.connection.getLatestBlockhash(
+        "confirmed"
+      );
+      // Create a transaction to transfer SOL and sync the native account
+      const transaction = new Transaction().add(syncNativeIx);
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = adminPublicKey;
+      // Sign and send the transaction
+      const signature = await sendAndConfirmTransaction(
+        provider.connection,
+        transaction,
+        [adminKeypair]
       );
     }
 
-    result = await getSwapIx(adminPublicKey, tokenAccount, quote);
-
-    if ("error" in result) {
-      console.log({ result });
-      return result;
-    }
-  
-
-  // We have now both the instruction and the lookup table addresses.
-  const {
-    computeBudgetInstructions, // The necessary instructions to setup the compute budget.
-    swapInstruction, // The actual swap instruction.
-    addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
-  } = result;
-
-  if (buy) {
-    const associatedTokenAddress = await getOrCreateAssociatedTokenAccount(
-      provider.connection,
+    const txHash = await rebalanceIndexTokens(
+      program,
+      provider,
       adminKeypair,
-      SOL,
-      adminPublicKey,
-      false
+      programState,
+      mintPublicKey,
+      getIndexInfoPda(mintPublicKey),
+      getRebalanceIndexInfoPda(mintPublicKey),
+      computeBudgetInstructions,
+      swapInstruction,
+      addressLookupTableAddresses
     );
-    const transaction1 = new Transaction();
-    transaction1.add(
-      SystemProgram.transfer({
-        fromPubkey: adminKeypair.publicKey, // Sender (authority) account
-        toPubkey: associatedTokenAddress.address, // Recipient account
-        lamports: amount, // Amount in lamports
-      })
-    );
-    // Sign and send the transaction
-    const txHash1 = await sendAndConfirmTransaction(
-      provider.connection,
-      transaction1,
-      [adminKeypair]
-    );
-    const syncNativeIx = createSyncNativeInstruction(
-      associatedTokenAddress.address
-    );
-    const { blockhash } = await provider.connection.getLatestBlockhash(
-      "confirmed"
-    );
-    // Create a transaction to transfer SOL and sync the native account
-    const transaction = new Transaction().add(syncNativeIx);
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = adminPublicKey;
-    // Sign and send the transaction
-    const signature = await sendAndConfirmTransaction(
-      provider.connection,
-      transaction,
-      [adminKeypair]
-    );
+
+    return txHash;
+
+  }catch(err){
+    console.log(err)
+    return null
   }
-
-  const txHash = await rebalanceIndexTokens(
-    program,
-    provider,
-    adminKeypair,
-    programState,
-    mintPublicKey,
-    getIndexInfoPda(mintPublicKey),
-    getRebalanceIndexInfoPda(mintPublicKey),
-    computeBudgetInstructions,
-    swapInstruction,
-    addressLookupTableAddresses
-  );
-
-  return txHash;
+  
 }
 
 export async function rebalanceIndexEnd(

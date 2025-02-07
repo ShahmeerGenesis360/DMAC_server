@@ -1,12 +1,12 @@
 import {config} from "../config/index"
 import { GroupCoin } from "../models/groupCoin";
-import {swapToTknStart, swapToTkn, swapToTknEnd, swapToSol, swapToSolEnd} from "../utils/apiRequest"
+import {swapToTknStart, swapToTkn, swapToTknEnd, swapToSol, swapToSolEnd, rebalanceIndexStart, rebalanceIndex, rebalanceIndexEnd, fetchIndexInfo, createWsol} from "../utils/apiRequest"
 import {VersionedTransaction, Keypair, PublicKey, LAMPORTS_PER_SOL, TransactionInstruction,Connection} from '@solana/web3.js'
 import { web3,  } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
 import IDL from "../idl/idl.json"
 import { Idl, Program, Provider, AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index";
+import {DmacBuyIndexEvent, DmacSellIndexEvent, DmacCreateIndexEvent, RebalanceEvent} from "../types/index";
 import bs58 from 'bs58';
 import { Record } from "../models/record";
 import {AdminReward} from "../models/adminReward";
@@ -14,8 +14,9 @@ import axios from "axios";
 import { getMint } from "@solana/spl-token";
 import { getOrUpdateFund } from "../utils";
 import { IndexFund } from "../models/indexFund";
+import {sendToProgramAuthority} from "../utils/web3"
 
-const {  RPC_URL, PRIVATE_KEY } = config;
+const {  RPC_URL, PRIVATE_KEY, PROGRAM_ID } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
 const connection = new web3.Connection(connectionUrl, 'confirmed');
 const decodedPrivateKey = bs58.decode(PRIVATE_KEY);
@@ -123,12 +124,21 @@ async function confirmFinalized(txHash: string) {
   console.log(`Transaction ${txHash} did not finalize in time ❌`);
 }
 
+async function handleCreateIndex(eventData: DmacCreateIndexEvent){
+  try{
+    const tx = await sendToProgramAuthority(program, keypair, provider)
+    console.log(tx, "sending tranaction")
+  }catch(err){
+    console.log(err)
+  }
+}
 
 async function handleBuyIndexQueue(
     eventData: DmacBuyIndexEvent
   ): Promise<void> {
     try {
       let MAX_RETRIES = 5
+      eventData.deposited = "1.9605225956580001"
       let allTxHashes: string[] = []
       let indexPublicKey = eventData.index_mint.toString();
 
@@ -168,6 +178,28 @@ async function handleBuyIndexQueue(
           }
         } 
       }
+
+      let createwsolTxId = null;
+      let entries = 0;
+      while(entries < MAX_RETRIES){
+        console.log("wsol sending")
+        entries += 1;
+        console.log(`Attempt #${attempt}`);
+        createwsolTxId = await createWsol(program, mintkeypair, keypair, provider as Provider);
+        if (createwsolTxId !== null) {
+          console.log(`Transaction completed successfully: ${createwsolTxId}`);
+          break;
+        }
+        else{
+          console.log(`Attempt Failed :( `)
+          if(attempt==MAX_RETRIES){
+            console.log(`Transaction failed after MAX attempt`)
+            return
+            
+          }
+        }
+      }
+      
 
       for (const coin of index.coins) {
         let tries = 0
@@ -401,70 +433,70 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         // transactions.push(txn);
         // globalInstructions.push(...swapToSolEndIns);
 
-        const MAX_INSTRUCTIONS = 3;  // Adjust based on Solana's block size
-        const instructionBatches = [];
-        while (globalInstructions.length > 0) {
-          instructionBatches.push(globalInstructions.splice(0, MAX_INSTRUCTIONS));  // Divide into batches
-        }
-        // const MAX_RETRIES = 3
-        // Send each batch as a separate transaction
-        for (let i = 0; i < instructionBatches.length; i++) {
-          const instructionsBatch = instructionBatches[i];
-          const blockhash = await connection.getLatestBlockhash();
-          console.log(blockhash, "blockHash")
-          const messageV0 = new web3.TransactionMessage({
-            payerKey: keypair.publicKey,
-            recentBlockhash: blockhash.blockhash,
-            instructions: instructionsBatch,
-          }).compileToV0Message();
+        // const MAX_INSTRUCTIONS = 3;  // Adjust based on Solana's block size
+        // const instructionBatches = [];
+        // while (globalInstructions.length > 0) {
+        //   instructionBatches.push(globalInstructions.splice(0, MAX_INSTRUCTIONS));  // Divide into batches
+        // }
+        // // const MAX_RETRIES = 3
+        // // Send each batch as a separate transaction
+        // for (let i = 0; i < instructionBatches.length; i++) {
+        //   const instructionsBatch = instructionBatches[i];
+        //   const blockhash = await connection.getLatestBlockhash();
+        //   console.log(blockhash, "blockHash")
+        //   const messageV0 = new web3.TransactionMessage({
+        //     payerKey: keypair.publicKey,
+        //     recentBlockhash: blockhash.blockhash,
+        //     instructions: instructionsBatch,
+        //   }).compileToV0Message();
     
-          const versionedTransaction = new web3.VersionedTransaction(messageV0);
-          versionedTransaction.sign([keypair]);
+        //   const versionedTransaction = new web3.VersionedTransaction(messageV0);
+        //   versionedTransaction.sign([keypair]);
     
-          try {
+        //   try {
         
-            let retryCount = 0;
-            let txid: string | null = null;
+        //     let retryCount = 0;
+        //     let txid: string | null = null;
 
-            while (retryCount < MAX_RETRIES) {
-              try {
-                txid = await connection.sendTransaction(versionedTransaction, {
-                  maxRetries: 2,
-                  skipPreflight: false,
-                  preflightCommitment: 'confirmed',
-                });
+        //     while (retryCount < MAX_RETRIES) {
+        //       try {
+        //         txid = await connection.sendTransaction(versionedTransaction, {
+        //           maxRetries: 2,
+        //           skipPreflight: false,
+        //           preflightCommitment: 'confirmed',
+        //         });
 
-                const confirmation = await connection.confirmTransaction(txid, 'finalized');
-                if (confirmation.value.err) {
-                  console.error(`Transaction failed: ${txid}`);
-                  throw new Error(`Transaction failed: ${txid}`);
-                } else {
-                  console.log(`Transaction confirmed: ${txid}`);
-                  break; // Exit the retry loop if successful
-                }
-              }catch (err) {
-                retryCount++;
-                console.error(`Error sending transaction batch ${i + 1}, retry ${retryCount}/${MAX_RETRIES}:`, err);
-                if (retryCount < MAX_RETRIES) {
-                  await delay(3000); // Wait before retrying
-                } else {
-                  console.error(`Failed to send transaction batch ${i + 1} after ${MAX_RETRIES} retries.`);
-                }
-              }
-            }
+        //         const confirmation = await connection.confirmTransaction(txid, 'finalized');
+        //         if (confirmation.value.err) {
+        //           console.error(`Transaction failed: ${txid}`);
+        //           throw new Error(`Transaction failed: ${txid}`);
+        //         } else {
+        //           console.log(`Transaction confirmed: ${txid}`);
+        //           break; // Exit the retry loop if successful
+        //         }
+        //       }catch (err) {
+        //         retryCount++;
+        //         console.error(`Error sending transaction batch ${i + 1}, retry ${retryCount}/${MAX_RETRIES}:`, err);
+        //         if (retryCount < MAX_RETRIES) {
+        //           await delay(3000); // Wait before retrying
+        //         } else {
+        //           console.error(`Failed to send transaction batch ${i + 1} after ${MAX_RETRIES} retries.`);
+        //         }
+        //       }
+        //     }
           
-            if (txid) {
-              console.log(`Transaction batch ${i + 1} sent successfully:`, txid);
-            } else {
-              console.error(`Transaction batch ${i + 1} failed after ${MAX_RETRIES} retries.`);
-            }
+        //     if (txid) {
+        //       console.log(`Transaction batch ${i + 1} sent successfully:`, txid);
+        //     } else {
+        //       console.error(`Transaction batch ${i + 1} failed after ${MAX_RETRIES} retries.`);
+        //     }
           
-            await delay(5000); // Delay between batches
-          } catch (err) {
-            console.log(`Error sending transaction batch ${i + 1}:`, err);
-            // Handle any failure to send the batch here
-          }
-        }
+        //     await delay(5000); // Delay between batches
+        //   } catch (err) {
+        //     console.log(`Error sending transaction batch ${i + 1}:`, err);
+        //     // Handle any failure to send the batch here
+        //   }
+        // }
     
         index.collectorDetail.forEach(async (item) => {
           const adminReward = new AdminReward({
@@ -482,5 +514,116 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
     }
 }
 
+async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
+  try{
+    let allTxHash: string[] = []
+    console.log(eventData, "event data")
+    const MAX_RETRIES = 5
+    const index = await GroupCoin.findById(eventData.indexId);
+    console.log(index)
+    let attempt = 0;
+    let swapToTknStartRebalanceTxHash = null;
+    let mintKeySecret = index.mintKeySecret;
+    mintKeySecret = mintKeySecret.slice(1, mintKeySecret.length - 1);
+    const secretKeyUint8Array = new Uint8Array(
+        Buffer.from(mintKeySecret, "base64")
+    );
+    const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
+    // while(attempt < MAX_RETRIES){
+    //   console.log("swap to token start rebalance")
+    //   attempt += 1;
+    //   console.log(`Attempt #${attempt}`);
+    //   swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, eventData.weight,  provider as Provider );
+    //   if (swapToTknStartRebalanceTxHash !== null) {
+    //     console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
+    //     break;
+    //   }
+    //   else{
+    //     console.log(`Attempt Failed :( `)
+    //     if(attempt==MAX_RETRIES){
+    //       console.log(`Transaction failed after MAX attempt`)
+    //       return
+            
+    //     }
+    //   } 
+    // }
 
-export {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue}
+    for(const coin of index.coins){
+      let tries = 0
+      let txId = null;
+
+
+      const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
+      console.log(data, "pda data")
+
+      // while(tries < MAX_RETRIES){
+      //   console.log("Attempting rebalance swap token ", coin.coinName)
+      //   tries++
+      //   console.log(`Attempt #${tries}`);; 
+
+      //   const data = await fetchIndexInfo(connection, mintkeypair.publicKey)
+      //   console.log(data)
+      //   let buy = true                //needs to be changed
+      //   let amount = 1
+      //   txId = await rebalanceIndex(program, provider as Provider, mintkeypair, mintkeypair.publicKey, buy, amount);
+      //   if (txId !== null) {
+      //     console.log(`Transaction completed successfully: ${txId}`);
+      //     allTxHash.push(txId)
+      //     break;
+      //   }
+      //   else{
+      //     console.log(`Attempt Failed :( `)
+      //     if(attempt==MAX_RETRIES){
+      //       console.log(`Transaction failed after MAX attempt`)
+      //       return
+              
+      //     }
+      //   } 
+      // }
+    }
+    for (const txHash of allTxHash) {
+      await confirmFinalized(txHash);
+    }
+
+    let tries = 0;
+    let txId = null;
+    // while(tries < MAX_RETRIES){
+    //   console.log("Attempting rebalance end  ")
+    //   tries++
+    //   console.log(`Attempt #${tries}`);
+     
+    //   txId = await rebalanceIndexEnd(program, mintkeypair);
+    //   if (txId !== null) {
+    //     console.log(`Transaction completed successfully: ${txId}`);
+    //     break;
+    //   }
+    //   else{
+    //     console.log(`Attempt Failed :( `)
+    //     if(attempt==MAX_RETRIES){
+    //       console.log(`Transaction failed after MAX attempt`)
+    //       return
+            
+    //     }
+    //   } 
+    // }
+
+
+    // const updatedGroupCoin = await GroupCoin.findByIdAndUpdate(
+    //   eventData.indexId,
+    //   { $set: { coins: eventData.coins } }, // Replace all coins
+    //   { new: true }
+    // );
+
+    // if (!updatedGroupCoin) {
+    //   console.log("GroupCoin not found");
+    //   return null;
+    // }
+
+    // console.log("Updated All Coins:", updatedGroupCoin);
+
+  }catch(err){
+    console.log(err)
+  }
+}
+
+export {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue, handleRebalanceIndex}

@@ -16,6 +16,7 @@ import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
 import { addEventToQueue } from '../queue/eventQueue';
 import { RebalanceEvent } from "../types";
+import * as anchor from "@coral-xyz/anchor";
 
 const indexController = () => {
   const groupIndexService = indexService();
@@ -432,17 +433,26 @@ const indexController = () => {
     try {
       const {
         id,
-
+        newWeights,
+        // coins
       } = req.body;
-      // const eventData: RebalanceEvent =  {
-      //   indexId: id,
-      // } 
-      
-      // console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
-      // console.log(eventData, "rebalance eventData")
-      // // Add event to the Bull queue
-      // await addEventToQueue('RebalanceIndex', eventData);
 
+      // const coins = []
+      // const coinList = JSON.parse(coins);
+
+      let weight: number[] = newWeights;
+      let weights = weight.map((ele) => new anchor.BN(ele));
+      const eventData: RebalanceEvent =  {
+        indexId: id,
+        weight: weights,
+        // coins: coinList
+      } 
+      
+      console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
+      console.log(eventData, "rebalance eventData")
+      // Add event to the Bull queue
+      await addEventToQueue('RebalanceIndex', eventData);
+      res.status(200).json({ message: "Rebalance event queued successfully" });
     }catch(err){
       logger.error(`Error in rebalance ==> `, err.message);
       sendErrorResponse({
