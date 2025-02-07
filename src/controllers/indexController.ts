@@ -17,6 +17,37 @@ import { Types } from "mongoose";
 // import { addEventToQueue } from '../queue/eventQueue';
 // import { RebalanceEvent } from "../types";
 
+interface IndexInfo {
+  totalValue: number;
+  totalBuy: number;
+  totalSell: number;
+  totalVolume: number;
+  price: number;
+  totalSupply: number;
+  indexWorth: number;
+  totalHolder: number;
+}
+
+interface ProcessedIndex {
+  _id: Types.ObjectId;
+  name: string;
+  coins: any[];
+  faq: any[];
+  mintKeypairSecret: string;
+  description: string;
+  visitCount: number;
+  imageUrl: string;
+  category: string;
+  collectorDetail: any;
+  mintPublickey: string;
+  price: number;
+  a1H: number;
+  a1D: number;
+  a1W: number;
+  graph: any[];
+  info: IndexInfo;
+}
+
 const indexController = () => {
   const groupIndexService = indexService();
   const calculatePercentageChange = (
@@ -649,219 +680,213 @@ const indexController = () => {
       });
     }
   };
-
   const getAllIndexV2 = async (req: Request, res: Response) => {
     try {
-      const { page = 1, pageSize = 5 } = req.query;
-      const rtoday = new Date();
-      rtoday.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
-      const tomorrow = new Date(rtoday);
-      tomorrow.setUTCDate(rtoday.getUTCDate() + 1); // Start of the next day
-
+      // Extract and validate pagination params
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.max(1, Number(req.query.pageSize) || 5);
+      const skip = (page - 1) * pageSize;
+  
+      // Calculate time ranges once
       const now = moment();
-      const oneHourAgo = moment().subtract(1, "hour");
-      const today = moment().format("YYYY-MM-DD");
-      const sevenDaysAgo = moment().subtract(7, "days");
-      const start: Moment = moment(now).subtract(6, "days");
-      // Assume getAllIntervals is defined elsewhere with proper typing
-      const allIntervals: Date[] = await getAllIntervals(start, now, 7);
-      // Fetch all indexes
-      const totalRecords = await GroupCoin.countDocuments();
-
-      // Calculate total pages
-      const totalPages = Math.ceil(totalRecords / +pageSize);
-
-      const allIndexes = await GroupCoin.find()
-        .skip((+page - 1) * +pageSize)
-        .limit(+pageSize);
-
-      // Process each index asynchronously
+      const timeRanges = {
+        rtoday: moment().startOf('day').toDate(),
+        tomorrow: moment().startOf('day').add(1, 'day').toDate(),
+        oneHourAgo: now.clone().subtract(1, 'hour'),
+        today: now.format('YYYY-MM-DD'),
+        sevenDaysAgo: now.clone().subtract(7, 'days'),
+        start: now.clone().subtract(6, 'days')
+      };
+  
+      // Run queries in parallel
+      const [totalRecords, allIndexes, allIntervals] = await Promise.all([
+        GroupCoin.countDocuments(),
+        GroupCoin.find().skip(skip).limit(pageSize),
+        getAllIntervals(timeRanges.start, now, 7)
+      ]);
+  
       const allIndexData = await Promise.all(
-        allIndexes.map(async (index) => {
-          const indexPriceHistory = await GroupCoinHistory.find({
-            indexId: index._id,
-          });
-
-          const { hourData, dayData, sevenDayData } = indexPriceHistory.reduce(
-            (acc, item) => {
-              if (moment(item.createdAt).isBetween(oneHourAgo, now)) {
-                acc.hourData.push(item);
-              }
-              if (moment(item.createdAt).format("YYYY-MM-DD") === today) {
-                acc.dayData.push(item);
-              }
-              if (moment(item.createdAt).isBetween(sevenDaysAgo, now)) {
-                acc.sevenDayData.push(item);
-              }
-              return acc;
-            },
-            { hourData: [], dayData: [], sevenDayData: [] }
-          );
-
-          // Debugging output
-          console.log("hourData >", hourData.length);
-          console.log("dayData >", dayData.length);
-          console.log("sevenDayData >", sevenDayData.length);
-
-          // Calculate percentage changes
-          const percentage1h =
-            hourData.length > 1
-              ? calculatePercentageChange(
-                  hourData[0].price,
-                  hourData[hourData.length - 1].price
-                )
-              : 0;
-
-          const percentage24h =
-            dayData.length > 1
-              ? calculatePercentageChange(
-                  dayData[0].price,
-                  dayData[dayData.length - 1].price
-                )
-              : 0;
-
-          const percentage7d =
-            sevenDayData.length > 1
-              ? calculatePercentageChange(
-                  sevenDayData[0].price,
-                  sevenDayData[sevenDayData.length - 1].price
-                )
-              : 0;
-
-          const viewsArray = [];
-          for (let counter = 0; counter < allIntervals.length; counter++) {
-            const results = await GroupCoinHistory.find({
-              indexId: index._id,
-              createdAt: {
-                $gt: allIntervals[counter],
-                $lt: allIntervals[counter + 1] || now,
-              },
-            });
-
-            viewsArray.push({
-              ...groupDataByDay(results)?.[0],
-              time: allIntervals[counter],
-            });
-          }
-          const twenty4hour = await Record.find({
-            indexCoin: index._id,
-            createdAt: {
-              $gte: rtoday, // Greater than or equal to today
-              $lt: tomorrow, // Less than tomorrow
-            },
-          });
-          const totalValue = twenty4hour?.reduce(
-            (acc: number, item: IRecord) => acc + item.amount,
-            0
-          );
-          const uniqueHolders = await Record.aggregate([
-            {
-              $match: {
-                indexCoin: index._id, // Filter for specific indexCoin
-              },
-            },
-            {
-              $group: {
-                _id: "$tokenAddress", // Group by wallet address
-                indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
-                totalDeposit: {
-                  $sum: {
-                    $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
-                  },
-                },
-                totalWithdrawal: {
-                  $sum: {
-                    $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
-                  },
-                },
-              },
-            },
-            {
-              $addFields: {
-                netBalance: {
-                  $subtract: ["$totalDeposit", "$totalWithdrawal"],
-                }, // Deposit - Withdrawal
-              },
-            },
-            {
-              $match: {
-                netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
-              },
-            },
-            {
-              $group: {
-                _id: "$indexCoin", // Group by indexCoin to get unique count per index
-                holders: { $sum: 1 }, // Count unique holders
-              },
-            },
-          ]);
-
-          // Use reduce to calculate the total amount for the interval
-          const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
-            (acc, item) => {
-              if (item.type === "deposit") {
-                acc.totalBuy += 1; // Add amount or default to 0 if undefined
-              } else {
-                acc.totalSell += 1; // Add amount or default to 0 if undefined
-              }
-              acc.totalVolume += item.amount;
-              return acc; // Ensure accumulator is returned
-            },
-            { totalBuy: 0, totalSell: 0, totalVolume: 0 } // Correctly formatted initial accumulator
-          );
-          const fund = await getOrUpdateFund(index._id);
-          return {
-            _id: index._id,
-            name: index.name,
-            coins: index.coins,
-            faq: index.faq,
-            mintKeypairSecret: index.mintKeySecret,
-            description: index.description,
-            visitCount: index.visitCount,
-            imageUrl: index.imageUrl,
-            category: index.category,
-            collectorDetail: index.collectorDetail,
-            mintPublickey: index.mintPublickey,
-            price: 0,
-            a1H: percentage1h,
-            a1D: percentage24h,
-            a1W: percentage7d,
-            graph: viewsArray, // daily chart
-            info: {
-              totalValue,
-              totalBuy,
-              totalSell,
-              totalVolume,
-              price:
-                fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
-              totalSupply: fund.totalSupply,
-              indexWorth: fund.indexWorth,
-              totalHolder: uniqueHolders[0]?.holders || 0,
-            },
-          };
-        })
+        allIndexes.map(index => processIndex(index, timeRanges, allIntervals, now))
       );
-
-      sendSuccessResponse({
+  
+      return sendSuccessResponse({
         res,
         data: {
           indexes: allIndexData,
           meta: {
             totalRecords,
-            totalPages,
+            totalPages: Math.ceil(totalRecords / pageSize),
             currentPage: page,
           },
         },
-        message: "Fetched all indexs successfully",
+        message: "Fetched all indexes successfully",
       });
+  
     } catch (err) {
       console.error("Error fetching index data:", err);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
+      return res.status(500).json({ 
+        success: false, 
+        message: "Internal server error" 
+      });
     }
   };
-
+  
+  async function processIndex(
+    index: any, 
+    timeRanges: any, 
+    allIntervals: Date[], 
+    now: Moment
+  ): Promise<ProcessedIndex> {
+    // Run all main queries in parallel
+    const [indexPriceHistory, twenty4hour, uniqueHolders, fund] = await Promise.all([
+      GroupCoinHistory.find({ indexId: index._id }),
+      Record.find({
+        indexCoin: index._id,
+        createdAt: {
+          $gte: timeRanges.rtoday,
+          $lt: timeRanges.tomorrow,
+        },
+      }),
+      getUniqueHolders(index._id),
+      getOrUpdateFund(index._id)
+    ]);
+  
+    // Process historical data
+    const { hourData, dayData, sevenDayData } = processHistoricalData(
+      indexPriceHistory,
+      timeRanges
+    );
+  
+    // Calculate percentage changes
+    const percentages = calculatePercentages(hourData, dayData, sevenDayData);
+  
+    // Process graph data
+    const graph = await processGraphData(index._id, allIntervals, now);
+  
+    // Process 24-hour metrics
+    const metrics = process24HourMetrics(twenty4hour);
+  
+    return {
+      _id: index._id,
+      name: index.name,
+      coins: index.coins,
+      faq: index.faq,
+      mintKeypairSecret: index.mintKeySecret,
+      description: index.description,
+      visitCount: index.visitCount,
+      imageUrl: index.imageUrl,
+      category: index.category,
+      collectorDetail: index.collectorDetail,
+      mintPublickey: index.mintPublickey,
+      price: 0,
+      ...percentages,
+      graph,
+      info: {
+        ...metrics,
+        price: fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+        totalSupply: fund.totalSupply,
+        indexWorth: fund.indexWorth,
+        totalHolder: uniqueHolders[0]?.holders || 0,
+      },
+    };
+  }
+  
+  function processHistoricalData(history: any[], timeRanges: any) {
+    return history.reduce(
+      (acc, item) => {
+        const itemDate = moment(item.createdAt);
+        if (itemDate.isBetween(timeRanges.oneHourAgo, timeRanges.now)) {
+          acc.hourData.push(item);
+        }
+        if (itemDate.format('YYYY-MM-DD') === timeRanges.today) {
+          acc.dayData.push(item);
+        }
+        if (itemDate.isBetween(timeRanges.sevenDaysAgo, timeRanges.now)) {
+          acc.sevenDayData.push(item);
+        }
+        return acc;
+      },
+      { hourData: [], dayData: [], sevenDayData: [] }
+    );
+  }
+  
+  function calculatePercentages(hourData: any[], dayData: any[], sevenDayData: any[]) {
+    return {
+      a1H: hourData.length > 1 
+        ? calculatePercentageChange(hourData[0].price, hourData[hourData.length - 1].price) 
+        : 0,
+      a1D: dayData.length > 1 
+        ? calculatePercentageChange(dayData[0].price, dayData[dayData.length - 1].price) 
+        : 0,
+      a1W: sevenDayData.length > 1 
+        ? calculatePercentageChange(sevenDayData[0].price, sevenDayData[sevenDayData.length - 1].price) 
+        : 0,
+    };
+  }
+  
+  async function getUniqueHolders(indexId: Types.ObjectId) {
+    return Record.aggregate([
+      {
+        $match: { indexCoin: indexId }
+      },
+      {
+        $group: {
+          _id: "$tokenAddress",
+          totalDeposit: {
+            $sum: { $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0] }
+          },
+          totalWithdrawal: {
+            $sum: { $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0] }
+          }
+        }
+      },
+      {
+        $match: {
+          $expr: { $gt: ["$totalDeposit", "$totalWithdrawal"] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          holders: { $sum: 1 }
+        }
+      }
+    ]);
+  }
+  
+  function process24HourMetrics(records: any[]) {
+    return records.reduce(
+      (acc, item) => {
+        if (item.type === "deposit") {
+          acc.totalBuy += 1;
+        } else {
+          acc.totalSell += 1;
+        }
+        acc.totalVolume += item.amount;
+        acc.totalValue += item.amount;
+        return acc;
+      },
+      { totalBuy: 0, totalSell: 0, totalVolume: 0, totalValue: 0 }
+    );
+  }
+  
+  async function processGraphData(indexId: Types.ObjectId, intervals: Date[], now: Moment) {
+    return Promise.all(
+      intervals.map(async (interval, index) => {
+        const results = await GroupCoinHistory.find({
+          indexId,
+          createdAt: {
+            $gt: interval,
+            $lt: intervals[index + 1] || now.toDate(),
+          },
+        });
+        return {
+          ...groupDataByDay(results)?.[0],
+          time: interval,
+        };
+      })
+    );
+  }
   const tvlGraph = async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
