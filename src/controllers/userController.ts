@@ -215,7 +215,7 @@ const userController = () => {
                 year: { $year: "$createdAt" },
                 week: { $week: "$createdAt" },
               },
-              count: { $sum: 1 },
+              count: { $sum: 1 }, // Total users per week
             },
           },
           {
@@ -226,10 +226,44 @@ const userController = () => {
           },
         ]);
 
+        // Group the results by week in the format YYYY-WW
+        const groupedData: any = {};
+        let totalUsers = 0; // Variable to store the total user count
+        let latestMonth = ""; // Variable to store the latest week
+        let latestMonthCount = 0; // Variable to store the count of the latest week
+
+        weeklyData.forEach((data) => {
+          const firstDayOfWeek = new Date(
+            data._id.year,
+            0,
+            (data._id.week - 1) * 7 + 1
+          );
+          const formattedWeek = firstDayOfWeek.toLocaleString("en-US", {
+            month: "short",
+            day: "2-digit",
+          });
+
+          groupedData[formattedWeek] = data.count;
+          totalUsers += data.count;
+
+          // Check for the latest week
+          if (
+            !latestMonth ||
+            firstDayOfWeek.getTime() > new Date(latestMonth).getTime()
+          ) {
+            latestMonth = formattedWeek;
+            latestMonthCount = data.count;
+          }
+        });
+
+        // Return the grouped data with total count per week, total users, latest week, and latest week's count
         res.status(200).json({
           type: "week",
           data: {
-            weeklyData,
+            groupedData,
+            totalUsers,
+            latestMonth,
+            latestMonthCount,
           },
         });
       } else {

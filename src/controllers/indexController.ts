@@ -11,15 +11,56 @@ import {
 } from "../socket/price/helper";
 import { GroupCoinHistory } from "../models/groupCoinHistory";
 import moment, { Moment } from "moment";
-import { getAllIntervals, getOrUpdateFund } from "../utils";
+import { getAllIntervals, getOrUpdateFund, groupDataByDay } from "../utils";
 import { Record, IRecord } from "../models/record";
 import { Types } from "mongoose";
 import { addEventToQueue } from '../queue/eventQueue';
 import { RebalanceEvent } from "../types";
 import * as anchor from "@coral-xyz/anchor";
+// import { addEventToQueue } from '../queue/eventQueue';
+// import { RebalanceEvent } from "../types";
+
+interface IndexInfo {
+  totalValue: number;
+  totalBuy: number;
+  totalSell: number;
+  totalVolume: number;
+  price: number;
+  totalSupply: number;
+  indexWorth: number;
+  totalHolder: number;
+}
+
+interface ProcessedIndex {
+  _id: Types.ObjectId;
+  name: string;
+  coins: any[];
+  faq: any[];
+  mintKeypairSecret: string;
+  description: string;
+  visitCount: number;
+  imageUrl: string;
+  category: string;
+  collectorDetail: any;
+  mintPublickey: string;
+  price: number;
+  a1H: number;
+  a1D: number;
+  a1W: number;
+  graph: any[];
+  info: IndexInfo;
+}
 
 const indexController = () => {
   const groupIndexService = indexService();
+  const calculatePercentageChange = (
+    previousPrice: number,
+    currentPrice: number
+  ): number => {
+    if (previousPrice === 0) return 0; // Avoid division by zero
+    const change = ((currentPrice - previousPrice) / previousPrice) * 100;
+    return parseFloat(change.toFixed(2)); // Round to 2 decimal places
+  };
   const createIndex = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
@@ -34,7 +75,7 @@ const indexController = () => {
         tokenAllocations,
         collectorDetailApi,
         feeAmount,
-        symbol
+        symbol,
       } = req.body;
       const imageUrl = req?.file?.filename;
       const coinList = JSON.parse(coins);
@@ -55,7 +96,7 @@ const indexController = () => {
         collectorDetail: processedDetails,
         feeAmount: fee,
         category,
-        symbol
+        symbol,
       });
 
       // Save to the database
@@ -188,6 +229,146 @@ const indexController = () => {
     }
   };
 
+  const getAllIndexPaginated = async (req: Request, res: Response) => {
+    logger.info(`indexController get all index`);
+    const { page = 1, limit = 10, search } = req.query;
+    const query: any = {};
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { username: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    try {
+      const allIndexs = await GroupCoin.find(query)
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+
+      const allIndexData = await Promise.all(
+        allIndexs.map(async (index) => {
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+          const tomorrow = new Date(today);
+          tomorrow.setUTCDate(today.getUTCDate() + 1); // Start of the next day
+
+          const twenty4hour = await Record.find({
+            indexCoin: index._id,
+          });
+          const totalValue = twenty4hour?.reduce(
+            (acc: number, item: IRecord) => acc + item.amount,
+            0
+          );
+          const uniqueHolders = await Record.aggregate([
+            {
+              $match: {
+                indexCoin: index._id, // Filter for specific indexCoin
+              },
+            },
+            {
+              $group: {
+                _id: "$tokenAddress", // Group by wallet address
+                indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+                totalDeposit: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                  },
+                },
+                totalWithdrawal: {
+                  $sum: {
+                    $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                  },
+                },
+              },
+            },
+            {
+              $addFields: {
+                netBalance: {
+                  $subtract: ["$totalDeposit", "$totalWithdrawal"],
+                }, // Deposit - Withdrawal
+              },
+            },
+            {
+              $match: {
+                netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+              },
+            },
+            {
+              $group: {
+                _id: "$indexCoin", // Group by indexCoin to get unique count per index
+                holders: { $sum: 1 }, // Count unique holders
+              },
+            },
+          ]);
+
+          console.log(uniqueHolders);
+
+          console.log("Total Holders:", uniqueHolders[0] || 0);
+
+          // Use reduce to calculate the total amount for the interval
+          const { totalBuy, totalSell, totalVolume, buyAmount, sellAmount } =
+            twenty4hour.reduce(
+              (acc, item) => {
+                if (item.type === "deposit") {
+                  acc.totalBuy += 1; // Add amount or default to 0 if undefined
+                  acc.buyAmount += item.amount;
+                } else {
+                  acc.totalSell += 1; // Add amount or default to 0 if undefined
+                  acc.sellAmount += item.amount;
+                }
+                acc.totalVolume += item.amount;
+                return acc; // Ensure accumulator is returned
+              },
+              {
+                totalBuy: 0,
+                totalSell: 0,
+                totalVolume: 0,
+                buyAmount: 0,
+                sellAmount: 0,
+              } // Correctly formatted initial accumulator
+            );
+          const fund = await getOrUpdateFund(index._id);
+          return {
+            index,
+            totalBuy,
+            totalSell,
+            totalVolume,
+            totalValue,
+            totalHolder: uniqueHolders[0]?.holders || 0,
+            totalValueLocked: buyAmount - sellAmount || 0,
+            price:
+              fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+            totalSupply: fund.totalSupply,
+            indexWorth: fund.indexWorth,
+            buyAmount,
+          };
+        })
+      );
+
+      const totalIndex = await GroupCoin.countDocuments(query);
+
+      sendSuccessResponse({
+        res,
+        data: {
+          index: allIndexs?.length ? allIndexData : [],
+          total: totalIndex,
+          totalPages: Math.ceil(totalIndex / Number(limit)),
+          currentPage: Number(page),
+        },
+        message: "Fetched all indexs successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while fetching all index ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+
   const getIndexById = async (req: Request, res: Response) => {
     logger.info(`indexController get index by id`);
     try {
@@ -228,7 +409,7 @@ const indexController = () => {
   const getTimeFrame = async (time: "1D" | "1W" | "1M" | "3M") => {
     const end: Moment = moment();
     let start: Moment;
-    let allIntervals: string[];
+    let allIntervals: any[];
 
     switch (time) {
       case "1D":
@@ -280,7 +461,7 @@ const indexController = () => {
           results.length > 0 ? results[results.length - 1].price : 0;
 
         viewsArray.push({
-          startDate: allIntervals[index]?.split(",")[0],
+          startDate: moment(allIntervals[index]).format("MMM DD"),
           totalAmount: averageAmount,
         });
       }
@@ -304,19 +485,70 @@ const indexController = () => {
         0
       );
 
-      // Use reduce to calculate the total amount for the interval
-      const { totalBuy, totalSell, totalVolume } = twenty4hour.reduce(
-        (acc, item) => {
-          if (item.type === "deposit") {
-            acc.totalBuy += 1; // Add amount or default to 0 if undefined
-          } else {
-            acc.totalSell += 1; // Add amount or default to 0 if undefined
-          }
-          acc.totalVolume += item.amount;
-          return acc; // Ensure accumulator is returned
+      const uniqueHolders = await Record.aggregate([
+        {
+          $match: {
+            indexCoin: id, // Filter for specific indexCoin
+          },
         },
-        { totalBuy: 0, totalSell: 0, totalVolume: 0 } // Correctly formatted initial accumulator
-      );
+        {
+          $group: {
+            _id: "$tokenAddress", // Group by wallet address
+            indexCoin: { $first: "$indexCoin" }, // Preserve indexCoin
+            totalDeposit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+              },
+            },
+            totalWithdrawal: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            netBalance: {
+              $subtract: ["$totalDeposit", "$totalWithdrawal"],
+            }, // Deposit - Withdrawal
+          },
+        },
+        {
+          $match: {
+            netBalance: { $gt: 0 }, // Sirf jo abhi bhi hold kar rahe hain
+          },
+        },
+        {
+          $group: {
+            _id: "$indexCoin", // Group by indexCoin to get unique count per index
+            holders: { $sum: 1 }, // Count unique holders
+          },
+        },
+      ]);
+
+      // Use reduce to calculate the total amount for the interval
+      const { totalBuy, totalSell, totalVolume, buyAmount, sellAmount } =
+        twenty4hour.reduce(
+          (acc, item) => {
+            if (item.type === "deposit") {
+              acc.totalBuy += 1; // Add amount or default to 0 if undefined
+              acc.buyAmount += item.amount;
+            } else {
+              acc.totalSell += 1; // Add amount or default to 0 if undefined
+              acc.sellAmount += item.amount;
+            }
+            acc.totalVolume += item.amount;
+            return acc; // Ensure accumulator is returned
+          },
+          {
+            totalBuy: 0,
+            totalSell: 0,
+            totalVolume: 0,
+            buyAmount: 0,
+            sellAmount: 0,
+          } // Correctly formatted initial accumulator
+        );
       console.log("total 24 hr volume ", {
         totalValue,
         totalBuy,
@@ -339,6 +571,7 @@ const indexController = () => {
               fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
             totalSupply: fund.totalSupply,
             indexWorth: fund.indexWorth,
+            totalHolder: uniqueHolders[0]?.holders || 0,
           },
         },
         message: "Index Graph successfull",
@@ -366,7 +599,7 @@ const indexController = () => {
         imageUrl,
         category,
         collectorDetails,
-        symbol
+        symbol,
       } = req.body;
 
       // Parse coins and FAQ
@@ -463,13 +696,338 @@ const indexController = () => {
   //     });
   //   }
   // }
+  const rebalance = async (req: Request, res: Response) => {
+    logger.info(`indexController create an index`);
+    try {
+      const { id } = req.body;
+      // const eventData: RebalanceEvent =  {
+      //   indexId: id,
+      // }
+
+      // console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
+      // console.log(eventData, "rebalance eventData")
+      // // Add event to the Bull queue
+      // await addEventToQueue('RebalanceIndex', eventData);
+    } catch (err) {
+      logger.error(`Error in rebalance ==> `, err.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: err.message,
+        statusCode: 500,
+      });
+    }
+  };
+  const getAllIndexV2 = async (req: Request, res: Response) => {
+    try {
+      // Extract and validate pagination params
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.max(1, Number(req.query.pageSize) || 5);
+      const skip = (page - 1) * pageSize;
+  
+      // Calculate time ranges once
+      const now = moment();
+      const timeRanges = {
+        rtoday: moment().startOf('day').toDate(),
+        tomorrow: moment().startOf('day').add(1, 'day').toDate(),
+        oneHourAgo: now.clone().subtract(1, 'hour'),
+        today: now.format('YYYY-MM-DD'),
+        sevenDaysAgo: now.clone().subtract(7, 'days'),
+        start: now.clone().subtract(6, 'days')
+      };
+  
+      // Run queries in parallel
+      const [totalRecords, allIndexes, allIntervals] = await Promise.all([
+        GroupCoin.countDocuments(),
+        GroupCoin.find().skip(skip).limit(pageSize),
+        getAllIntervals(timeRanges.start, now, 7)
+      ]);
+  
+      const allIndexData = await Promise.all(
+        allIndexes.map(index => processIndex(index, timeRanges, allIntervals, now))
+      );
+  
+      return sendSuccessResponse({
+        res,
+        data: {
+          indexes: allIndexData,
+          meta: {
+            totalRecords,
+            totalPages: Math.ceil(totalRecords / pageSize),
+            currentPage: page,
+          },
+        },
+        message: "Fetched all indexes successfully",
+      });
+  
+    } catch (err) {
+      console.error("Error fetching index data:", err);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Internal server error" 
+      });
+    }
+  };
+  
+  async function processIndex(
+    index: any, 
+    timeRanges: any, 
+    allIntervals: Date[], 
+    now: Moment
+  ): Promise<ProcessedIndex> {
+    // Run all main queries in parallel
+    const [indexPriceHistory, twenty4hour, uniqueHolders, fund] = await Promise.all([
+      GroupCoinHistory.find({ indexId: index._id }),
+      Record.find({
+        indexCoin: index._id,
+        createdAt: {
+          $gte: timeRanges.rtoday,
+          $lt: timeRanges.tomorrow,
+        },
+      }),
+      getUniqueHolders(index._id),
+      getOrUpdateFund(index._id)
+    ]);
+  
+    // Process historical data
+    const { hourData, dayData, sevenDayData } = processHistoricalData(
+      indexPriceHistory,
+      timeRanges
+    );
+  
+    // Calculate percentage changes
+    const percentages = calculatePercentages(hourData, dayData, sevenDayData);
+  
+    // Process graph data
+    const graph = await processGraphData(index._id, allIntervals, now);
+  
+    // Process 24-hour metrics
+    const metrics = process24HourMetrics(twenty4hour);
+  
+    return {
+      _id: index._id,
+      name: index.name,
+      coins: index.coins,
+      faq: index.faq,
+      mintKeypairSecret: index.mintKeySecret,
+      description: index.description,
+      visitCount: index.visitCount,
+      imageUrl: index.imageUrl,
+      category: index.category,
+      collectorDetail: index.collectorDetail,
+      mintPublickey: index.mintPublickey,
+      price: 0,
+      ...percentages,
+      graph,
+      info: {
+        ...metrics,
+        price: fund.totalSupply === 0 ? 0 : fund.indexWorth / fund.totalSupply,
+        totalSupply: fund.totalSupply,
+        indexWorth: fund.indexWorth,
+        totalHolder: uniqueHolders[0]?.holders || 0,
+      },
+    };
+  }
+  
+  function processHistoricalData(history: any[], timeRanges: any) {
+    return history.reduce(
+      (acc, item) => {
+        const itemDate = moment(item.createdAt);
+        if (itemDate.isBetween(timeRanges.oneHourAgo, timeRanges.now)) {
+          acc.hourData.push(item);
+        }
+        if (itemDate.format('YYYY-MM-DD') === timeRanges.today) {
+          acc.dayData.push(item);
+        }
+        if (itemDate.isBetween(timeRanges.sevenDaysAgo, timeRanges.now)) {
+          acc.sevenDayData.push(item);
+        }
+        return acc;
+      },
+      { hourData: [], dayData: [], sevenDayData: [] }
+    );
+  }
+  
+  function calculatePercentages(hourData: any[], dayData: any[], sevenDayData: any[]) {
+    return {
+      a1H: hourData.length > 1 
+        ? calculatePercentageChange(hourData[0].price, hourData[hourData.length - 1].price) 
+        : 0,
+      a1D: dayData.length > 1 
+        ? calculatePercentageChange(dayData[0].price, dayData[dayData.length - 1].price) 
+        : 0,
+      a1W: sevenDayData.length > 1 
+        ? calculatePercentageChange(sevenDayData[0].price, sevenDayData[sevenDayData.length - 1].price) 
+        : 0,
+    };
+  }
+  
+  async function getUniqueHolders(indexId: Types.ObjectId) {
+    return Record.aggregate([
+      {
+        $match: { indexCoin: indexId }
+      },
+      {
+        $group: {
+          _id: "$tokenAddress",
+          totalDeposit: {
+            $sum: { $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0] }
+          },
+          totalWithdrawal: {
+            $sum: { $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0] }
+          }
+        }
+      },
+      {
+        $match: {
+          $expr: { $gt: ["$totalDeposit", "$totalWithdrawal"] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          holders: { $sum: 1 }
+        }
+      }
+    ]);
+  }
+  
+  function process24HourMetrics(records: any[]) {
+    return records.reduce(
+      (acc, item) => {
+        if (item.type === "deposit") {
+          acc.totalBuy += 1;
+        } else {
+          acc.totalSell += 1;
+        }
+        acc.totalVolume += item.amount;
+        acc.totalValue += item.amount;
+        return acc;
+      },
+      { totalBuy: 0, totalSell: 0, totalVolume: 0, totalValue: 0 }
+    );
+  }
+  
+  async function processGraphData(indexId: Types.ObjectId, intervals: Date[], now: Moment) {
+    return Promise.all(
+      intervals.map(async (interval, index) => {
+        const results = await GroupCoinHistory.find({
+          indexId,
+          createdAt: {
+            $gt: interval,
+            $lt: intervals[index + 1] || now.toDate(),
+          },
+        });
+        return {
+          ...groupDataByDay(results)?.[0],
+          time: interval,
+        };
+      })
+    );
+  }
+  const tvlGraph = async (req: Request, res: Response) => {
+    try {
+      const { type } = req.query;
+
+      // Validate the 'type' query parameter with proper type assertion and checking
+      if (!["daily", "weekly", "monthly"].includes(type as string)) {
+        return res.status(400).json({ error: "Invalid type" });
+      }
+
+      // Define a type for allowed types
+      type DateRangeKey = "daily" | "weekly" | "monthly";
+
+      // Map the string keys to their respective date ranges
+      const dateRange: Record<DateRangeKey, number> = {
+        daily: 6,
+        weekly: 6 * 7,
+        monthly: 31 * 7,
+      };
+
+      // Ensure 'type' is treated as a valid key from the `dateRange` object
+      const dateRangeKey = type as DateRangeKey;
+
+      // Set the end date to today's date
+      const end: Moment = moment();
+
+      // Calculate the start date by subtracting the specified range from the end date
+      console.log(">> :", dateRange[dateRangeKey]);
+      const start: Moment = moment(end).subtract(
+        dateRange[dateRangeKey],
+        "days"
+      );
+
+      // Assume getAllIntervals is defined elsewhere with proper typing
+      const allIntervals: Date[] = await getAllIntervals(start, end, 7);
+      console.log({ allIntervals });
+      const allIndexes = await GroupCoin.find();
+
+      const data = await Promise.all(
+        allIndexes.map(async (index) => {
+          const viewsArray = [];
+          for (let counter = 0; counter < allIntervals.length; counter++) {
+            const result = await Record.aggregate([
+              {
+                $match: {
+                  indexCoin: index._id, // Filter for a specific indexCoin
+                  createdAt: {
+                    $gt: allIntervals[counter],
+                    $lt: allIntervals[counter + 1] || end,
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: "$indexCoin", // Group by unique holder ID
+                  indexCoin: { $first: "$indexCoin" }, // Retain indexCoin for later grouping
+                  totalDeposit: {
+                    $sum: {
+                      $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
+                    },
+                  },
+                  totalWithdrawal: {
+                    $sum: {
+                      $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
+                    },
+                  },
+                },
+              },
+            ]);
+            viewsArray.push({
+              startDate: moment(allIntervals[counter]).format("MMM DD"),
+              indexCoin: result?.[0]?.indexCoin || index._id,
+              totalDeposit: result?.[0]?.totalDeposit ?? 0,
+              totalWithdrawal: result?.[0]?.totalWithdrawal ?? 0,
+            });
+          }
+
+          return {
+            indexId: index._id,
+            ...viewsArray,
+          };
+        })
+      );
+
+      sendSuccessResponse({
+        res,
+        data: data,
+        message: "Fetched all indexes successfully",
+      });
+    } catch (error) {
+      console.error("Error fetching TVL graph data:", error);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  };
 
   return {
-    getAllIndex,
+    getAllIndex: getAllIndexV2,
     createIndex,
     getIndexById,
     updateIndex,
     getIndexGraph,
+    rebalance,
+    getAllIndexPaginated,
+    tvlGraph,
   };
 };
 

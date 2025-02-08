@@ -4,6 +4,7 @@ export interface IGroupCoinHistory {
   price: string;
   time: string;
   indexId: Types.ObjectId;
+  createdAt: Date;
 }
 
 export const groupCoinHistorySchema = new Schema<IGroupCoinHistory>(
