@@ -138,10 +138,8 @@ async function handleBuyIndexQueue(
   ): Promise<void> {
     try {
       let MAX_RETRIES = 5
-      eventData.deposited = "1.9605225956580001"
       let allTxHashes: string[] = []
       let indexPublicKey = eventData.index_mint.toString();
-
 
 
       indexPublicKey = `"${indexPublicKey}"`;
@@ -154,7 +152,7 @@ async function handleBuyIndexQueue(
       const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
       let attempt = 0;
       let swapToTknStartTxHash = null;
-      console.log("here")
+
       while(attempt < MAX_RETRIES){
         console.log("swap to token start")
         attempt += 1;
@@ -184,7 +182,7 @@ async function handleBuyIndexQueue(
       while(entries < MAX_RETRIES){
         console.log("wsol sending")
         entries += 1;
-        console.log(`Attempt #${attempt}`);
+        console.log(`Attempt #${entries}`);
         createwsolTxId = await createWsol(program, mintkeypair, keypair, provider as Provider);
         if (createwsolTxId !== null) {
           console.log(`Transaction completed successfully: ${createwsolTxId}`);
@@ -357,7 +355,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               console.log(coin.coinName, coin.address, "name address")
               tokenDecimals = decimals[coin.coinName]
               console.log(tokenPrice, tokenDecimals, "decimal")
-              amount = ((((Number(eventData.withdrawn)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
+              amount = ((((Number(eventData.withdrawn) + Number(eventData.adminFee)/index.coins.length) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
               console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
