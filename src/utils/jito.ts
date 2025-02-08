@@ -24,7 +24,7 @@ export const getRandomeTipAccountAddress = async (
   searcherClient: searcher.SearcherClient
 ) => {
   const account = await searcherClient.getTipAccounts();
-  if (!account || account.length === 0) {
+  if (!account || (account as any).length === 0) {
     throw new Error("No tip accounts available.");
   }
   return new PublicKey(account[0]);
