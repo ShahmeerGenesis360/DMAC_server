@@ -52,11 +52,7 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
         if (groupcoin === undefined) return;
         const now = moment();
         const starts: Moment = moment(now).subtract(6, "days");
-        const allGraphIntervals: Date[] = await getAllIntervals(
-          starts,
-          now,
-          7
-        );
+        const allGraphIntervals: Date[] = await getAllIntervals(starts, now, 7);
         const viewsArray = [];
         const graphArray = [];
         for (let counter = 0; counter < allGraphIntervals.length; counter++) {
@@ -98,19 +94,17 @@ const priceSocketHandler = (io: Server, socket: Socket) => {
           });
         }
 
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
-        const tomorrow = new Date(today);
-        tomorrow.setUTCDate(today.getUTCDate() + 1); // Start of the next day
+        const today = moment().startOf("day").toDate();
+        const tomorrow = moment().startOf("day").add(1, "day").toDate();
 
         console.log("today ==> ", today); // Debugging
         console.log("tomorrow ==> ", tomorrow); // Debugging
         const twenty4hour = await Record.find({
           indexCoin: new Types.ObjectId(id),
-          // createdAt: {
-          //   $gte: today, // Greater than or equal to today
-          //   $lt: tomorrow, // Less than tomorrow
-          // },
+          createdAt: {
+            $gte: today, // Greater than or equal to today
+            $lt: tomorrow, // Less than tomorrow
+          },
         });
         console.log("data on check ", twenty4hour?.length);
         const totalValue = twenty4hour?.reduce(
