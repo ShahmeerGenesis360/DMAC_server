@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import moment, { Moment } from "moment";
+import { GroupCoinHistory } from "../models/groupCoinHistory";
+import { Record } from "../models/record";
 import { IndexFund } from "../models/indexFund";
+import { Types } from "mongoose";
 
 const SECRET_KEY = process.env.JWT_SECRET || "your_jwt_secret";
 const JWT_SECRET = "your_secret_key_here"; // Replace with an environment variable in production
@@ -224,4 +227,129 @@ export const groupDataByDay = (tickData: any[]) => {
       };
     }
   );
+};
+
+export function processHistoricalData(history: any[], timeRanges: any) {
+  return history.reduce(
+    (acc, item) => {
+      const itemDate = moment(item.createdAt);
+      if (itemDate.isBetween(timeRanges.oneHourAgo, timeRanges.now)) {
+        acc.hourData.push(item);
+      }
+      if (itemDate.format("YYYY-MM-DD") === timeRanges.today) {
+        acc.dayData.push(item);
+      }
+      if (itemDate.isBetween(timeRanges.sevenDaysAgo, timeRanges.now)) {
+        acc.sevenDayData.push(item);
+      }
+      return acc;
+    },
+    { hourData: [], dayData: [], sevenDayData: [] }
+  );
+}
+
+export function calculatePercentages(
+  hourData: any[],
+  dayData: any[],
+  sevenDayData: any[]
+) {
+  return {
+    a1H:
+      hourData.length > 1
+        ? calculatePercentageChange(
+            hourData[0].price,
+            hourData[hourData.length - 1].price
+          )
+        : 0,
+    a1D:
+      dayData.length > 1
+        ? calculatePercentageChange(
+            dayData[0].price,
+            dayData[dayData.length - 1].price
+          )
+        : 0,
+    a1W:
+      sevenDayData.length > 1
+        ? calculatePercentageChange(
+            sevenDayData[0].price,
+            sevenDayData[sevenDayData.length - 1].price
+          )
+        : 0,
+  };
+}
+
+export async function getUniqueHolders(indexId: any) {
+  return Record.aggregate([
+    { $match: { indexCoin: new Types.ObjectId(indexId) } },
+    {
+      $group: {
+        _id: "$tokenAddress",
+        totalDeposit: { $sum: { $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0] } },
+        totalWithdrawal: { $sum: { $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0] } }
+      }
+    },
+    {
+      $addFields: {
+        netBalance: { $subtract: ["$totalDeposit", "$totalWithdrawal"] }
+      }
+    },
+    {
+      $match: {
+        netBalance: { $gt: 0 }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        holders: { $sum: 1 }
+      }
+    }
+  ]);
+}
+
+export function process24HourMetrics(records: any[]) {
+  return records.reduce(
+    (acc, item) => {
+      if (item.type === "deposit") {
+        acc.totalBuy += 1;
+      } else {
+        acc.totalSell += 1;
+      }
+      acc.totalVolume += item.amount;
+      acc.totalValue += item.amount;
+      return acc;
+    },
+    { totalBuy: 0, totalSell: 0, totalVolume: 0, totalValue: 0 }
+  );
+}
+
+export async function processGraphData(
+  indexId: Types.ObjectId,
+  intervals: Date[],
+  now: Moment
+) {
+  return Promise.all(
+    intervals.map(async (interval, index) => {
+      const results = await GroupCoinHistory.find({
+        indexId,
+        createdAt: {
+          $gt: interval,
+          $lt: intervals[index + 1] || now.toDate(),
+        },
+      });
+      return {
+        ...groupDataByDay(results)?.[0],
+        time: interval,
+      };
+    })
+  );
+}
+
+export const calculatePercentageChange = (
+  previousPrice: number,
+  currentPrice: number
+): number => {
+  if (previousPrice === 0) return 0; // Avoid division by zero
+  const change = ((currentPrice - previousPrice) / previousPrice) * 100;
+  return parseFloat(change.toFixed(2)); // Round to 2 decimal places
 };
