@@ -79,6 +79,28 @@ export const findProgramAuthority = (programId: PublicKey): PublicKey => {
   )[0];
 };
 
+export const sendToProgramAuthority = async(program: Program, admin: Keypair, provider: AnchorProvider): Promise<string> =>{
+  try{
+    const programAuth = findProgramAuthority(program.programId)
+    const tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+          fromPubkey: programAuth,
+          toPubkey: admin.publicKey,
+          lamports: 0.005 * anchor.web3.LAMPORTS_PER_SOL, // Convert SOL to lamports
+      })
+  );
+
+  // Send and confirm transaction
+  const signature = await provider.sendAndConfirm(tx);
+
+
+  console.log(`✅ Transaction successful: https://explorer.solana.com/tx/${signature}?cluster=devnet`);
+  }catch(err){
+    console.log(err)
+    return null
+  }
+}
+
 export const findProgramWSOLAccount = (programId: PublicKey): PublicKey => {
   return PublicKey.findProgramAddressSync([Buffer.from("wsol")], programId)[0];
 };
@@ -581,13 +603,25 @@ export const rebalanceIndexTokens = async (
     //   wallet.payer,
     // ]);
     // console.log({ txSimulationResponse });
+    transaction.sign([adminKeypair])
+    let txID = await connection.sendTransaction(transaction, {
+      skipPreflight: true,
+      preflightCommitment: "confirmed",
+    });
+  
+    const confirmation = await provider.connection.confirmTransaction(txID,"confirmed")
+    if (confirmation.value.err) {
+      console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
+      return null
+    } else {
+      console.log(`Transaction confirmed: ${transaction}`);
+      return txID;
+    }
 
-    const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
     // console.log({ txID });
-    return txID;
   } catch (e) {
     console.log({ simulationResponse: e });
-    throw new Error("Failure during simulation");
+    return null
   }
 };
 

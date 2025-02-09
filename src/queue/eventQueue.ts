@@ -2,6 +2,7 @@ import {config} from "../config/index"
 import Bull, { Job } from 'bull';
 import {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue} from './eventQueueHandler'
 import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index"
+import { io } from "../eventListener";
 
 
 // Define types for the job data
@@ -58,7 +59,8 @@ eventQueue.process(async (job: Job<JobData>) => {
         console.log(`Unknown event: ${eventName}`);
     }
 
-    console.log(`${eventName} saved to DB!`);
+    console.log(`${eventName} successfully processed`);
+    io.emit("eventProcessed", { eventName, eventData });
   } catch (err) {
     console.error('Error processing job:', err);
   }

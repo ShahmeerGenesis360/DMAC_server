@@ -1,5 +1,6 @@
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import * as anchor from "@coral-xyz/anchor";
+import { ICoin } from '../models/groupCoin';
 
 interface BaseEvent {
   slot: number;
@@ -23,6 +24,13 @@ export interface DmacBuyIndexEvent extends BaseEvent{
   // userAddress: string;
 }
 
+export interface DmacCreateIndexEvent extends BaseEvent{
+  index_mint: string;
+  tokens: string;
+  initialSupply: string;
+  // userAddress: string;
+}
+
 export interface DmacSellIndexEvent extends BaseEvent{
   index_mint: string;
   withdrawn: string;
@@ -39,5 +47,6 @@ export type SwapResult = {
 
 export type RebalanceEvent = {
   indexId: string,
-  weight: []
+  weight: number[],
+  // coins: ICoin[]
 }
