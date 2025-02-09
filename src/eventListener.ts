@@ -22,7 +22,7 @@ const startServer = async () => {
     await listenForEvents().catch(err => console.error('Error starting listener:', err));
 
     // Start the Express server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server is listening on port ${PORT}`);
     });
   } catch (error) {

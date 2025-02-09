@@ -61,6 +61,7 @@ eventQueue.process(async (job: Job<JobData>) => {
 
     console.log(`${eventName} successfully processed`);
     io.emit("eventProcessed", { eventName, eventData });
+    console.log("event emitted!")
   } catch (err) {
     console.error('Error processing job:', err);
   }

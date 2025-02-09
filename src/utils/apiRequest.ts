@@ -506,49 +506,59 @@ export async function swapToTknStart(
   
 }
 
-export async function createWsol(program: Program, mintKeypair: Keypair, keypair: Keypair, provider: anchor.Provider) {
-  try{
+
+export async function createWsol(
+  program: anchor.Program,
+  mintKeypair: Keypair,
+  keypair: Keypair,
+  provider: anchor.AnchorProvider
+) {
+  try {
     const mintPublicKey = mintKeypair.publicKey;
 
-  const wsolTokenAccount = getAssociatedTokenAddressSync(
-    SOL_MINT,
-    adminPublicKey,
-    false,
-    TOKEN_PROGRAM_ID
-  );
+    const wsolTokenAccount = getAssociatedTokenAddressSync(
+      SOL_MINT,
+      adminPublicKey,
+      false,
+      TOKEN_PROGRAM_ID
+    );
 
-  const accounts = {
-    programState: programState,
-    admin: adminPublicKey,
-    indexMint: mintPublicKey,
-    swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
-    wsolMint: SOL_MINT,
-    wsolTokenAccount: wsolTokenAccount,
-    tokenProgram: TOKEN_PROGRAM_ID,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    systemProgram: SYSTEM_PROGRAM_ID,
-  };
-  // console.log("accounts: ", accounts);
+    const accounts = {
+      programState: programState,
+      admin: adminPublicKey,
+      indexMint: mintPublicKey,
+      swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+      wsolMint: SOL_MINT,
+      wsolTokenAccount: wsolTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    };
 
-  let transaction = await program.rpc.createWsol({
-    accounts: accounts,
-    signers: [keypair],
-  });
-  const confirmation = await provider.connection.confirmTransaction(transaction,"finalized");
-  if (confirmation.value.err) {
-    console.error(`Transaction failed: ${transaction}`)
-    return null
-  } else {
-    console.log(`Transaction confirmed: ${transaction}`);
-    return transaction; // Exit the retry loop if successful
+    console.log("Creating wSOL with accounts:", accounts);
+
+    // ✅ Create transaction
+    const transaction = await program.methods.createWsol().accounts(accounts).transaction();
+
+    // ✅ Sign transaction with admin keypair
+    transaction.feePayer = provider.wallet.publicKey;
+    transaction.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+    await transaction.sign(keypair);
+
+    // ✅ Send transaction
+    const signature = await provider.connection.sendTransaction(transaction, [keypair], {
+      skipPreflight: false, // Ensure preflight checks
+      preflightCommitment: "finalized",
+    });
+
+    console.log(`✅ Transaction confirmed with signature: ${signature}`);
+    return signature;
+  } catch (err) {
+    console.error("❌ Error in createWsol:", err);
+    return null;
   }
-  }catch(err){
-    console.log(JSON.stringify(err))
-    return null
-  }
-  
-
 }
+
 
 
 export async function getTokenProgramId(

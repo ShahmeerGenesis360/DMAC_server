@@ -141,7 +141,6 @@ async function handleBuyIndexQueue(
       let allTxHashes: string[] = []
       let indexPublicKey = eventData.index_mint.toString();
 
-
       indexPublicKey = `"${indexPublicKey}"`;
       const index = await GroupCoin.findOne({ mintPublickey: indexPublicKey });
       let mintKeySecret = index.mintKeySecret;
@@ -183,7 +182,7 @@ async function handleBuyIndexQueue(
         console.log("wsol sending")
         entries += 1;
         console.log(`Attempt #${entries}`);
-        createwsolTxId = await createWsol(program, mintkeypair, keypair, provider as Provider);
+        createwsolTxId = await createWsol(program, mintkeypair, keypair, provider);
         if (createwsolTxId !== null) {
           console.log(`Transaction completed successfully: ${createwsolTxId}`);
           break;
@@ -355,7 +354,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               console.log(coin.coinName, coin.address, "name address")
               tokenDecimals = decimals[coin.coinName]
               console.log(tokenPrice, tokenDecimals, "decimal")
-              amount = ((((Number(eventData.withdrawn) + Number(eventData.adminFee)/index.coins.length) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
+              amount = ((((Number(eventData.withdrawn) + Number(eventData.adminFee)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
               console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
@@ -375,6 +374,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               }
             }
             
+
         
             let fund = await getOrUpdateFund(index._id);
             const proportionalSharePercentage = Number(eventData?.withdrawn) / fund.totalSupply;
@@ -394,11 +394,12 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               new: true,
             });
 
+            const recordAmount = Math.round(Number(eventData.withdrawn) * (coin.proportion /100) * LAMPORTS_PER_SOL)
             const record = new Record({
                 // user: eventData.userAddress,
                 type: "withdrawal", // Enum for transaction type
                 indexCoin: index._id,
-                amount: amount, // Either deposit or withdrawal amount 
+                amount: recordAmount, // Either deposit or withdrawal amount 
                 tokenAddress: coin.address,
             })
             await record.save();
