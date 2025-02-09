@@ -10,7 +10,8 @@ const CommentService = () => {
   const getChatByIndexId = async (
     index: string,
     page: number,
-    pageSize: number
+    pageSize: number,
+    type?: string
   ): Promise<PaginatedResponse<IComment>> => {
     // Get the total number of records
     const id = new mongoose.Types.ObjectId(index);
@@ -19,9 +20,16 @@ const CommentService = () => {
     // Calculate total pages
     const totalPages = Math.ceil(totalRecords / pageSize);
 
+    let sortQuery: Partial<Record<keyof IComment, 1 | -1>> = { createdAt: -1 }; // Default sorting
+
+    if (type === "Impression") {
+      sortQuery = { impressions: 1 };
+    } else if (type === "Like") {
+      sortQuery = { like: 1 };
+    }
     // Fetch the paginated data
     const data = await Comment.find({ indexId: id })
-      .sort({ createdAt: -1 })
+      .sort(sortQuery)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .populate("userId", "_id username name ")
