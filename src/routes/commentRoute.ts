@@ -5,6 +5,7 @@ import CommentController from "../controllers/commentController";
 const commentController = CommentController();
 const commentRouter = Router();
 
-commentRouter.get("/:id", commentController.getCommentsByIndexId);
+commentRouter.post("/:id/view", commentController.incrementImpression);
+commentRouter.get("/:id/:type", commentController.getCommentsByIndexId);
 
 export default commentRouter;

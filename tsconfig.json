@@ -8,7 +8,7 @@
       "outDir": "build",                      // Place compiled JS files in the 'build' directory
       "baseUrl": ".",                         // Set base URL for non-relative imports
       "lib": ["es2017", "dom"],               // Use ES2017 and DOM libraries for modern JS features
-      "noImplicitAny": false,                  // Prevent usage of the 'any' type
+      "noImplicitAny": true,                  // Prevent usage of the 'any' type
       "strict": false,                        // Disable strict mode for more relaxed type checks
       "typeRoots": ["./node_modules/@types"], // Specify where to look for type definitions
       "skipLibCheck": true,                   // Skip type checking of declaration files

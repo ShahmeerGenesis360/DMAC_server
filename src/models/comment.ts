@@ -8,6 +8,10 @@ export interface IComment extends Document {
   userId: Types.ObjectId;
   like?: number;
   dislike?: number;
+  lastImpressionAt?: Date;
+  impressions?: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const commentSchema = new Schema<IComment>(
@@ -18,6 +22,8 @@ const commentSchema = new Schema<IComment>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     like: { type: Number, default: 0 },
     dislike: { type: Number, default: 0 },
+    impressions: { type: Number, default: 0 },
+    lastImpressionAt: { type: Date, default: new Date("1990-01-01") },
   },
   { timestamps: true }
 );

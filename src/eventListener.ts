@@ -1,9 +1,17 @@
 import express from 'express';
 import listenForEvents from './events/eventListener';
 import Mongo from './config/database';
+import http from "http";
+import { Server } from "socket.io";
 
 const app = express();
 const PORT = process.env.PORT_EVENT || 3000;
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
+export { io };
 
 const startServer = async () => {
   try {
@@ -14,7 +22,7 @@ const startServer = async () => {
     await listenForEvents().catch(err => console.error('Error starting listener:', err));
 
     // Start the Express server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server is listening on port ${PORT}`);
     });
   } catch (error) {
