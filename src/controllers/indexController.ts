@@ -77,14 +77,14 @@ const indexController = () => {
         collectorDetailApi,
         feeAmount,
         symbol,
+        imageUrl,
       } = req.body;
-      const imageUrl = req?.file?.filename;
-      const coinList = JSON.parse(coins);
-      const faqList = JSON.parse(faq);
+      const coinList = coins;
+      const faqList = faq;
       let fee = feeAmount.slice(1, feeAmount.length - 1);
       fee = parseFloat(feeAmount as string);
       const processedDetails: ICollectorDetail[] =
-        JSON.parse(collectorDetailApi);
+        collectorDetailApi;
 
       const groupCoin = new GroupCoin({
         name,
@@ -590,9 +590,9 @@ const indexController = () => {
 
   const updateIndex = async (req: Request, res: Response) => {
     logger.info(`indexController update an index`);
+    const { id } = req.params;
     try {
       const {
-        id,
         name,
         coins,
         description,
@@ -604,12 +604,11 @@ const indexController = () => {
       } = req.body;
 
       // Parse coins and FAQ
-      const coinList = coins ? JSON.parse(coins) : [];
-      const faqList = faq ? JSON.parse(faq) : [];
-      const collectorDetailsList = collectorDetails
-        ? JSON.parse(collectorDetails)
-        : [];
+      const coinList = coins ? coins : [];
+      const faqList = faq ? faq : [];
+      const collectorDetailsList = collectorDetails ? collectorDetails : [];
 
+      console.log(id, "Edit COin");
       // Find the existing GroupCoin by ID
       const existingGroupCoin = await GroupCoin.findById(id);
       if (!existingGroupCoin) {
@@ -623,11 +622,7 @@ const indexController = () => {
 
       // Handle the image (uploaded file or link)
       let updatedImageUrl = existingGroupCoin.imageUrl; // Default to the current image URL
-      if (req?.file?.filename) {
-        updatedImageUrl = req.file.filename; // New uploaded file
-      } else if (imageUrl) {
-        updatedImageUrl = imageUrl; // New image link
-      }
+      updatedImageUrl = imageUrl; // New image link
 
       // Update the GroupCoin fields
       existingGroupCoin.name = name || existingGroupCoin.name;
