@@ -66,8 +66,8 @@ const transactionController = () => {
 
         viewsArray.push({
           startDate: moment(allIntervals[index]).format("MMM DD"),
-          totaldeposit,
-          totalwithdrawl,
+          totaldeposit: totaldeposit/1000000000,
+          totalwithdrawl: totalwithdrawl/1000000000,
         });
       }
       res.json({ data: viewsArray });
@@ -98,10 +98,10 @@ const transactionController = () => {
             $lt: allIntervals[index + 1] || end,
           },
         });
-
+        console.log(results,"results==>")
         // Use reduce to calculate the total amount for the interval
         const totalAmount = results.reduce(
-          (acc: number, item: any) => acc + (item.amount || 0), // Add amount or 0 to handle missing fields
+          (acc: number, item: any) => acc + (item.amount/1000000000 || 0), // Add amount or 0 to handle missing fields
           0
         );
 

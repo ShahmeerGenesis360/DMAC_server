@@ -906,8 +906,8 @@ const indexController = () => {
             viewsArray.push({
               startDate: moment(allIntervals[counter]).format("MMM DD"),
               indexCoin: result?.[0]?.indexCoin || index._id,
-              totalDeposit: result?.[0]?.totalDeposit ?? 0,
-              totalWithdrawal: result?.[0]?.totalWithdrawal ?? 0,
+              totalDeposit: (result?.[0]?.totalDeposit/100000000) || 0,
+              totalWithdrawal: (result?.[0]?.totalWithdrawal/100000000) || 0,
             });
           }
 
