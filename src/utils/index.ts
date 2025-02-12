@@ -61,27 +61,26 @@ export const decodeTokenFromAdminRequest = (
   req: CustomRequest,
   res: Response,
   next: NextFunction
-): void => {
+) => {
   const authHeader = req.headers["authorization"] || "";
 
   if (!authHeader.startsWith("Bearer ")) {
-    return next(new Error("Authorization token is missing or invalid"));
+    return res.status(401).json({ error: "Authorization token is missing or invalid" });
   }
 
   const token = authHeader.split(" ")[1]; // Extract token after "Bearer "
 
   try {
     const decodedUser = jwt.verify(token, JWT_SECRET);
-    console.log({ decodedUser });
 
     if (!decodedUser) {
-      return next(new Error("Invalid or expired token"));
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
 
     req.user = decodedUser; // Assign decoded user to the request object
     next(); // Pass control to the next middleware
   } catch (error) {
-    return next(new Error("Invalid or expired token"));
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
 
