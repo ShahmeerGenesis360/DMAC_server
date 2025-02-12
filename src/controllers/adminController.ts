@@ -44,7 +44,7 @@ const adminController = () => {
       // Check password
       const isPasswordValid = await bcrypt.compare(password, admin.password);
       if (!isPasswordValid) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        return res.status(500).json({ message: "Invalid credentials" });
       }
 
       // Generate JWT
