@@ -96,7 +96,6 @@ async function fetchSolanaUsdPrice() {
   }catch(error){
     return null;
   }
-	
 }
 
 async function confirmFinalized(txHash: string) {
