@@ -6,6 +6,7 @@ const { HELIUS_API_KEY } = config;
 
 export const fetchTokenSupply = async (tokenMintAddress:string):Promise<number> => {
   try {
+    console.log(tokenMintAddress)
     const url = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
     const query = {
       jsonrpc: "2.0",

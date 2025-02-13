@@ -74,8 +74,9 @@ async function updateCoins(): Promise<void>{
     const allIndex = await GroupCoin.find({});
     if (!allIndex.length) return;
     for (const index of allIndex) {
-      const supply = await fetchTokenSupply(index.mintPublickey);
-      const holders = await getTokenHolders(index.mintPublickey);
+      const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
+      const supply = await fetchTokenSupply(mintPublickey);
+      const holders = await getTokenHolders(mintPublickey);
       const price = await calculateIndexPrice(index,"2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
       const marketCap = await calculateMarketCap(index, "2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
       await GroupCoin.findOneAndUpdate( { _id: index._id },

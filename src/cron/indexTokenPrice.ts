@@ -112,10 +112,11 @@ export const calculateIndexPrice = async (index: IGroupCoin, pdaAddress: string)
       for (const token of index.coins) {
         const balance = await fetchBalance(token.coinName, token.address, pdaAddress)
         const tokenPriceInSol = await getTokenPriceInSol(token.address);
-        const tokenPriceInUsd = tokenPriceInSol * solPriceUsd;
+        const tokenPriceInUsd = tokenPriceInSol;
         totalPrice += tokenPriceInUsd * balance;
       }
-      const supply = await fetchTokenSupply(index.mintPublickey)
+      const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
+      const supply = await fetchTokenSupply(mintPublickey)
       const price = totalPrice/ supply;
       console.log(`📊 Final Index Token Price: $${price.toFixed(4)} USD`);
       return price;

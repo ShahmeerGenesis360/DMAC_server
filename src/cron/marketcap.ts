@@ -5,8 +5,8 @@ import  { fetchTokenSupply } from "./tokenSupply";
 export const calculateMarketCap = async (index: IGroupCoin, pdaAddress: string) => {
   try {
     console.log("📡 Fetching Market Cap...");
-
-    const supply = await fetchTokenSupply(index.mintPublickey);
+    const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
+    const supply = await fetchTokenSupply(mintPublickey);
     const price = await calculateIndexPrice(index, pdaAddress);
     const marketCap = supply * price;
 
