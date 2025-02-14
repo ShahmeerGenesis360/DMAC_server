@@ -10,7 +10,7 @@ import {
   processGraphData,
 } from "../../utils";
 import moment, { Moment } from "moment";
-import { Price } from "../../models/Price";
+import { Price } from "../../models/price";
 
 function calculatePercentages(hourData: any, dayData: any, sevenDayData: any) {
   const calculateChange = (newPrice: number, oldPrice: number) => {
