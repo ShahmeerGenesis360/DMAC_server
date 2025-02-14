@@ -754,10 +754,9 @@ const indexController = () => {
             category: index.category,
             collectorDetail: index.collectorDetail,
             mintPublickey: index.mintPublickey,
-            price:
-              fundData.totalSupply === 0
-                ? 0
-                : fundData.indexWorth / fundData.totalSupply,
+            totalHolder: index.holders || 0,
+            price: index.price || 0,
+            indexWorth: fundData?.indexWorth ||0,
           };
         })
       );

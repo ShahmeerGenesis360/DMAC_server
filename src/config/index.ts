@@ -27,4 +27,5 @@ export const config = {
   PRIVATE_KEY: process.env.PRIVATE_KEY,
   BUNDLE_TRANSACTION_LIMIT: process.env.BUNDLE_TRANSACTION_LIMIT,
   BLOCK_ENGINE_URL: process.env.BLOCK_ENGINE_URL,
+  HELIUS_API_KEY: process.env.HELIUS_API_KEY
 };

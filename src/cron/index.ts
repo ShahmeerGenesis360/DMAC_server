@@ -3,6 +3,11 @@ import { IndexFund } from "../models/indexFund";
 import { GroupCoin } from "../models/groupCoin";
 import { GroupCoinHistory } from "../models/groupCoinHistory";
 import indexService from "../service/indexService";
+import { fetchTokenSupply } from "./tokenSupply";
+import { calculateIndexPrice } from "./indexTokenPrice";
+import {getTokenHolders} from "./holders";
+import {calculateMarketCap} from "./marketcap";
+import {Price} from '../models/price'
 
 const SMOOTHING_FACTOR = 0.1;
 
@@ -63,9 +68,42 @@ async function updateGroupCoinHistory(): Promise<void> {
     console.error("Error updating GroupCoinHistory:", error);
   }
 }
-// Run every 30 seconds
+
+async function updateCoins(): Promise<void>{
+  try{
+    const allIndex = await GroupCoin.find({});
+    if (!allIndex.length) return;
+    for (const index of allIndex) {
+      const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
+      const supply = await fetchTokenSupply(mintPublickey);
+      const holders = await getTokenHolders(mintPublickey);
+      const price = await calculateIndexPrice(index,"2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
+      const marketCap = await calculateMarketCap(index, "2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
+      await GroupCoin.findOneAndUpdate( { _id: index._id },
+        {
+          holders: holders,
+          supply: supply,
+          marketCap: marketCap,
+          price: price,
+        },
+        {
+          upsert: true,
+          new: true,
+        })
+      await Price.create({
+          price: price,
+          time: Date.now(), // Current time in seconds
+          indexId: index._id,
+      });
+    }
+      
+  }catch(err){
+    console.error("Error updating GroupCoinHistory:", err);
+  }
+}
+
 const cronSchedule = "*/30 * * * * *";
-// const cronSchedule = "* * * * *"; // Run every 1 minute
-// Create and start the cron job
 const job = cron.schedule(cronSchedule, updateGroupCoinHistory);
+const job2 = cron.schedule(cronSchedule, updateCoins);
 job.start();
+job2.start()
