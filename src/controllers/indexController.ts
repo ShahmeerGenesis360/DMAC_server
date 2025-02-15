@@ -22,10 +22,11 @@ import {
   processHistoricalData,
 } from "../utils";
 import { Record, IRecord } from "../models/record";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { addEventToQueue } from "../queue/eventQueue";
 import { RebalanceEvent } from "../types";
 import * as anchor from "@coral-xyz/anchor";
+import { Price } from "../models/price";
 // import { addEventToQueue } from '../queue/eventQueue';
 // import { RebalanceEvent } from "../types";
 
@@ -83,8 +84,7 @@ const indexController = () => {
       const faqList = faq;
       let fee = feeAmount.slice(1, feeAmount.length - 1);
       fee = parseFloat(feeAmount as string);
-      const processedDetails: ICollectorDetail[] =
-        collectorDetailApi;
+      const processedDetails: ICollectorDetail[] = collectorDetailApi;
 
       const groupCoin = new GroupCoin({
         name,
@@ -117,118 +117,118 @@ const indexController = () => {
       });
     }
   };
-  const getAllIndex = async (req: Request, res: Response) => {
-    logger.info(`indexController get all index`);
-    try {
-      const allIndexs = await GroupCoin.find();
-      //   if (allIndexs?.length) {
-      //     for (const index of allIndexs) {
-      //       // Fetch all coin prices and calculate total
-      //       for (const coin of index.coins) {
-      //         const coinPrice = await groupIndexService.getCoinCurrentPrice(coin);
-      //         console.log("coinPrice", coinPrice);
-      //       }
-      //     }
-      //   }
-      const allIndexData = await Promise.all(
-        allIndexs.map(async (index) => {
-          const coinData = await Promise.all(
-            index.coins.map(async (coin) => {
-              // Fetch chart data for different intervals (1h, 24h, 7d)
-              const [data1h, data24h, data7d] = await Promise.all([
-                getChartData(coin.address, "1H", 60),
-                getChartData(coin.address, "1D", 1460),
-                getChartData(coin.address, "1D", 10080),
-              ]);
+  // const getAllIndex = async (req: Request, res: Response) => {
+  //   logger.info(`indexController get all index`);
+  //   try {
+  //     const allIndexs = await GroupCoin.find();
+  //     //   if (allIndexs?.length) {
+  //     //     for (const index of allIndexs) {
+  //     //       // Fetch all coin prices and calculate total
+  //     //       for (const coin of index.coins) {
+  //     //         const coinPrice = await groupIndexService.getCoinCurrentPrice(coin);
+  //     //         console.log("coinPrice", coinPrice);
+  //     //       }
+  //     //     }
+  //     //   }
+  //     const allIndexData = await Promise.all(
+  //       allIndexs.map(async (index) => {
+  //         const coinData = await Promise.all(
+  //           index.coins.map(async (coin) => {
+  //             // Fetch chart data for different intervals (1h, 24h, 7d)
+  //             const [data1h, data24h, data7d] = await Promise.all([
+  //               getChartData(coin.address, "1H", 60),
+  //               getChartData(coin.address, "1D", 1460),
+  //               getChartData(coin.address, "1D", 10080),
+  //             ]);
 
-              console.log(`Data for coin ${coin}:`, {
-                data1h,
-                data24h,
-                data7d,
-              });
+  //             console.log(`Data for coin ${coin}:`, {
+  //               data1h,
+  //               data24h,
+  //               data7d,
+  //             });
 
-              // Calculate percentage change for each time frame (1 hour, 24 hours, and 7 days)
-              const calculateForTimeFrame = (data: any[]) => {
-                if (data.length === 0) return { o: 0, c: 0, percentage: 0 };
-                const { o, c } = data[data.length - 1]; // Get the last data point for each timeframe
-                return {
-                  o,
-                  c,
-                  percentage: calculatePercentage(o, c),
-                };
-              };
+  //             // Calculate percentage change for each time frame (1 hour, 24 hours, and 7 days)
+  //             const calculateForTimeFrame = (data: any[]) => {
+  //               if (data.length === 0) return { o: 0, c: 0, percentage: 0 };
+  //               const { o, c } = data[data.length - 1]; // Get the last data point for each timeframe
+  //               return {
+  //                 o,
+  //                 c,
+  //                 percentage: calculatePercentage(o, c),
+  //               };
+  //             };
 
-              // Get the percentage change for each timeframe
-              const percentage1h = calculateForTimeFrame(data1h);
-              const percentage24h = calculateForTimeFrame(data24h);
-              const percentage7d = calculateForTimeFrame(data7d);
+  //             // Get the percentage change for each timeframe
+  //             const percentage1h = calculateForTimeFrame(data1h);
+  //             const percentage24h = calculateForTimeFrame(data24h);
+  //             const percentage7d = calculateForTimeFrame(data7d);
 
-              const getLastClosePrice = (data: any[]) => {
-                if (data.length === 0) return 0;
-                return data[data.length - 1].c; // Close price of the last data point
-              };
+  //             const getLastClosePrice = (data: any[]) => {
+  //               if (data.length === 0) return 0;
+  //               return data[data.length - 1].c; // Close price of the last data point
+  //             };
 
-              const coinPrice = getLastClosePrice(data1h);
+  //             const coinPrice = getLastClosePrice(data1h);
 
-              return {
-                coinAddress: coin.address,
-                percentage1h: percentage1h.percentage,
-                percentage24h: percentage24h.percentage,
-                percentage7d: percentage7d.percentage,
-                coinPrice,
-              };
-            })
-          );
+  //             return {
+  //               coinAddress: coin.address,
+  //               percentage1h: percentage1h.percentage,
+  //               percentage24h: percentage24h.percentage,
+  //               percentage7d: percentage7d.percentage,
+  //               coinPrice,
+  //             };
+  //           })
+  //         );
 
-          // Calculate the average percentage for each time frame (1h, 24h, 7d) across all coins in the index
-          const averagePercentage1h = calculateAveragePercentage(
-            coinData.map((data) => data.percentage1h)
-          );
-          const averagePercentage24h = calculateAveragePercentage(
-            coinData.map((data) => data.percentage24h)
-          );
-          const averagePercentage7d = calculateAveragePercentage(
-            coinData.map((data) => data.percentage7d)
-          );
+  //         // Calculate the average percentage for each time frame (1h, 24h, 7d) across all coins in the index
+  //         const averagePercentage1h = calculateAveragePercentage(
+  //           coinData.map((data) => data.percentage1h)
+  //         );
+  //         const averagePercentage24h = calculateAveragePercentage(
+  //           coinData.map((data) => data.percentage24h)
+  //         );
+  //         const averagePercentage7d = calculateAveragePercentage(
+  //           coinData.map((data) => data.percentage7d)
+  //         );
 
-          const price =
-            coinData.reduce((sum, data) => sum + data.coinPrice, 0) /
-            coinData.length;
+  //         const price =
+  //           coinData.reduce((sum, data) => sum + data.coinPrice, 0) /
+  //           coinData.length;
 
-          return {
-            _id: index._id,
-            name: index.name,
-            coins: index.coins,
-            faq: index.faq,
-            mintKeypairSecret: index.mintKeySecret,
-            description: index.description,
-            visitCount: index.visitCount,
-            imageUrl: index.imageUrl,
-            a1H: averagePercentage1h,
-            a1D: averagePercentage24h,
-            a1W: averagePercentage7d,
-            price,
-            category: index.category,
-            collectorDetail: index.collectorDetail,
-          };
-        })
-      );
+  //         return {
+  //           _id: index._id,
+  //           name: index.name,
+  //           coins: index.coins,
+  //           faq: index.faq,
+  //           mintKeypairSecret: index.mintKeySecret,
+  //           description: index.description,
+  //           visitCount: index.visitCount,
+  //           imageUrl: index.imageUrl,
+  //           a1H: averagePercentage1h,
+  //           a1D: averagePercentage24h,
+  //           a1W: averagePercentage7d,
+  //           price,
+  //           category: index.category,
+  //           collectorDetail: index.collectorDetail,
+  //         };
+  //       })
+  //     );
 
-      sendSuccessResponse({
-        res,
-        data: allIndexs?.length ? allIndexData : [],
-        message: "Fetched all indexs successfully",
-      });
-    } catch (error) {
-      logger.error(`Error while fetching all index ==> `, error.message);
-      sendErrorResponse({
-        req,
-        res,
-        error: error.message,
-        statusCode: 500,
-      });
-    }
-  };
+  //     sendSuccessResponse({
+  //       res,
+  //       data: allIndexs?.length ? allIndexData : [],
+  //       message: "Fetched all indexs successfully",
+  //     });
+  //   } catch (error) {
+  //     logger.error(`Error while fetching all index ==> `, error.message);
+  //     sendErrorResponse({
+  //       req,
+  //       res,
+  //       error: error.message,
+  //       statusCode: 500,
+  //     });
+  //   }
+  // };
 
   const getAllIndexPaginated = async (req: Request, res: Response) => {
     logger.info(`indexController get all index`);
@@ -692,6 +692,238 @@ const indexController = () => {
   //     });
   //   }
   // }
+
+  // const getChartData = async (req: Request, res: Response) => {
+  //   const { id } = req.params;
+  //   const { interval } = req.query;
+
+  //   try {
+  //     let startDate = new Date();
+  //     let groupBy = null; // Determines grouping level for large datasets
+
+  //     switch (interval) {
+  //       case "1D":
+  //         startDate.setHours(startDate.getHours() - 24);
+  //         break;
+  //       case "1W":
+  //         startDate.setDate(startDate.getDate() - 7);
+  //         break;
+  //       case "1M":
+  //         startDate.setMonth(startDate.getMonth() - 1);
+  //         groupBy = {
+  //           year: { $year: "$createdAt" },
+  //           month: { $month: "$createdAt" },
+  //           day: { $dayOfMonth: "$createdAt" },
+  //           halfDay: {
+  //             $cond: [{ $lt: [{ $hour: "$createdAt" }, 12] }, "AM", "PM"],
+  //           }, // Splitting into AM/PM
+  //         };
+  //         break;
+  //       case "3M":
+  //         startDate.setMonth(startDate.getMonth() - 3);
+  //         groupBy = {
+  //           year: { $year: "$createdAt" },
+  //           month: { $month: "$createdAt" },
+  //           week: { $week: "$createdAt" },
+  //         };
+  //         break;
+  //       case "1Y":
+  //         startDate.setFullYear(startDate.getFullYear() - 1);
+  //         groupBy = {
+  //           year: { $year: "$createdAt" },
+  //           month: { $month: "$createdAt" },
+  //         };
+  //         break;
+  //       case "All":
+  //         startDate = new Date(0); // Get all data
+  //         groupBy = {
+  //           year: { $year: "$createdAt" },
+  //           month: { $month: "$createdAt" },
+  //         };
+  //         break;
+  //       default:
+  //         return res.status(400).json({ error: "Invalid interval" });
+  //     }
+
+  //     let aggregationPipeline: any[] = [
+  //       {
+  //         $match: {
+  //           indexId: new mongoose.Types.ObjectId(id),
+  //           createdAt: { $gte: startDate },
+  //         },
+  //       },
+  //     ];
+
+  //     if (groupBy) {
+  //       // Group for larger intervals
+  //       aggregationPipeline.push(
+  //         {
+  //           $group: {
+  //             _id: groupBy,
+  //             lastRecord: { $last: "$$ROOT" }, // Get last record for each group
+  //           },
+  //         },
+  //         {
+  //           $project: {
+  //             _id: 0,
+  //             timestamp: "$lastRecord.createdAt",
+  //             value: "$lastRecord.price",
+  //           },
+  //         }
+  //       );
+  //     } else {
+  //       // No grouping for smaller intervals (24h, 7d)
+  //       aggregationPipeline.push(
+  //         {
+  //           $project: {
+  //             _id: 0,
+  //             timestamp: "$createdAt",
+  //             value: "$price",
+  //           },
+  //         },
+  //         { $sort: { timestamp: 1 } }
+  //       );
+  //     }
+
+  //     const chartData = await Price.aggregate(aggregationPipeline);
+
+  //     console.log(`chartData (${interval}): `, chartData.length);
+  //     sendSuccessResponse({
+  //       res,
+  //       data: { chart: chartData },
+  //     });
+  //   } catch (error) {
+  //     console.error("Error fetching chart data:", error);
+  //     res.status(500).json({ error: "Internal Server Error" });
+  //   }
+  // };
+  const getChartData = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { interval } = req.query;
+
+    try {
+      let startDate = new Date();
+      let groupBy = null;
+
+      switch (interval) {
+        case "1D":
+          startDate.setHours(startDate.getHours() - 24);
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+            halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } }, // Group by 30-minute intervals
+            hour: { $hour: "$createdAt" },
+          };
+        break;
+        case "1W":
+          startDate.setDate(startDate.getDate() - 7);
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+            halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } }, // Group by 30-minute intervals
+            hour: { $hour: "$createdAt" },
+          };
+          break;
+        case "1M":
+          startDate.setMonth(startDate.getMonth() - 1);
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+            halfDay: {
+              $cond: [{ $lt: [{ $hour: "$createdAt" }, 12] }, "AM", "PM"],
+            },
+          };
+          break;
+        case "3M":
+          startDate.setMonth(startDate.getMonth() - 3);
+
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" }, // Ensures daily data points
+          };
+          break;
+        case "1y":
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            halfMonth: {
+              $cond: [
+                { $lt: [{ $dayOfMonth: "$createdAt" }, 15] },
+                "Start",
+                "End",
+              ],
+            }, // Two records per month
+          };
+          break;
+        case "All":
+          startDate = new Date(0);
+          groupBy = {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" }, // Ensures daily data points
+          };
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid interval" });
+      }
+
+      let aggregationPipeline: any[] = [
+        {
+          $match: {
+            indexId: new mongoose.Types.ObjectId(id),
+            createdAt: { $gte: startDate },
+          },
+        },
+      ];
+
+      if (groupBy) {
+        aggregationPipeline.push(
+          {
+            $group: {
+              _id: groupBy,
+              lastRecord: { $last: "$$ROOT" }, // Get last record of the group
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              timestamp: "$lastRecord.createdAt",
+              value: "$lastRecord.price",
+            },
+          },
+          { $sort: { timestamp: 1 } }
+        );
+      } else {
+        aggregationPipeline.push(
+          {
+            $project: {
+              _id: 0,
+              timestamp: "$createdAt",
+              value: "$price",
+            },
+          },
+          { $sort: { timestamp: 1 } }
+        );
+      }
+
+      const chartData = await GroupCoinHistory.aggregate(aggregationPipeline);
+
+      console.log(`chartData (${interval}): `, chartData.length);
+      sendSuccessResponse({
+        res,
+        data: { chart: chartData },
+      });
+    } catch (error) {
+      console.error("Error fetching chart data:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  };
+
   const rebalance = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
@@ -756,7 +988,7 @@ const indexController = () => {
             mintPublickey: index.mintPublickey,
             totalHolder: index.holders || 0,
             price: index.price || 0,
-            indexWorth: fundData?.indexWorth ||0,
+            indexWorth: fundData?.indexWorth || 0,
           };
         })
       );
@@ -905,8 +1137,8 @@ const indexController = () => {
             viewsArray.push({
               startDate: moment(allIntervals[counter]).format("MMM DD"),
               indexCoin: result?.[0]?.indexCoin || index._id,
-              totalDeposit: (result?.[0]?.totalDeposit/100000000) || 0,
-              totalWithdrawal: (result?.[0]?.totalWithdrawal/100000000) || 0,
+              totalDeposit: result?.[0]?.totalDeposit / 100000000 || 0,
+              totalWithdrawal: result?.[0]?.totalWithdrawal / 100000000 || 0,
             });
           }
 
@@ -937,6 +1169,7 @@ const indexController = () => {
     rebalance,
     getAllIndexPaginated,
     tvlGraph,
+    getDailyChart: getChartData,
   };
 };
 
