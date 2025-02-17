@@ -66,8 +66,8 @@ const transactionController = () => {
 
         viewsArray.push({
           startDate: moment(allIntervals[index]).format("MMM DD"),
-          totaldeposit: totaldeposit/1000000000,
-          totalwithdrawl: totalwithdrawl/1000000000,
+          totaldeposit: totaldeposit / 1000000000,
+          totalwithdrawl: totalwithdrawl / 1000000000,
         });
       }
       res.json({ data: viewsArray });
@@ -77,45 +77,77 @@ const transactionController = () => {
   };
 
   const getTransactionMonthly = async (req: Request, res: Response) => {
-    // Set the end date to today's date
-    const end: Moment = moment();
+    console.log("get transaction monthly");
 
-    // Calculate the start date by subtracting the specified range from the end date
-    const start: Moment = moment(end).subtract(30, "days");
+    // Define date range
+    const end: Date = moment().utc().toDate();
+    const start: Date = moment().utc().subtract(30, "days").toDate();
 
-    // Assume getAllIntervals is defined elsewhere with proper typing
-    const allIntervals: Date[] = await getAllIntervals(start, end, 31);
-
-    // Log or return the intervals as required
-    console.log("All Intervals length:", allIntervals?.length);
-    console.log("All Intervals:", allIntervals);
     try {
-      const viewsArray = [];
-      for (let index = 0; index < allIntervals.length; index++) {
-        const results = await AdminReward.find({
-          createdAt: {
-            $gt: allIntervals[index],
-            $lt: allIntervals[index + 1] || end,
+      const result = await AdminReward.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: start, $lte: end },
           },
-        });
-        console.log(results,"results==>")
-        // Use reduce to calculate the total amount for the interval
-        const totalAmount = results.reduce(
-          (acc: number, item: any) => acc + (item.amount/1000000000 || 0), // Add amount or 0 to handle missing fields
-          0
-        );
+        },
+        {
+          $project: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Extract YYYY-MM-DD
+            type: 1,
+            amount: 1,
+          },
+        },
+        {
+          $group: {
+            _id: { date: "$date", type: "$type" }, // Group by date and type
+            totalAmount: { $sum: "$amount" }, // Sum amounts
+          },
+        },
+        { $sort: { "_id.date": -1 } },
+        {
+          $group: {
+            _id: null, // Collect everything in one object
+            buyRewards: {
+              $push: {
+                $cond: [
+                  { $eq: ["$_id.type", "buy"] },
+                  { date: "$_id.date", totalAmount: "$totalAmount" },
+                  "$$REMOVE",
+                ],
+              },
+            },
+            sellRewards: {
+              $push: {
+                $cond: [
+                  { $eq: ["$_id.type", "sell"] },
+                  { date: "$_id.date", totalAmount: "$totalAmount" },
+                  "$$REMOVE",
+                ],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            buyRewards: 1,
+            sellRewards: 1,
+          },
+        },
+      ]);
 
-        viewsArray.push({
-          startDate: moment(allIntervals[index]).format("MMM DD"),
-          totalAmount,
-        });
-      }
-      res.json({ data: viewsArray });
-    } catch (err) {
-      res.status(500).json({ error: "Server error", details: err.message });
+      sendSuccessResponse({
+        res,
+        data: result.length ? result[0] : { buyRewards: [], sellRewards: [] },
+        message: "Fetched rewards successfully",
+      });
+    } catch (err: any) {
+      console.error("Error in getTransactionMonthly:", err);
+      return res
+        .status(500)
+        .json({ error: "Server error", details: err.message });
     }
   };
-
   return {
     getTransactions,
     getTransactionMonthly,
