@@ -15,6 +15,7 @@ indexRouter.get(
 );
 indexRouter.get("/tvl", index.tvlGraph);
 indexRouter.get("/:id", index.getIndexById);
+indexRouter.get("/chart/:id", index.getDailyChart);
 indexRouter.post("/details/:id", index.getIndexGraph);
 indexRouter.post("/", index.createIndex);
 indexRouter.put("/:id", index.updateIndex);
