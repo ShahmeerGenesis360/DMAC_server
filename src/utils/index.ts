@@ -84,27 +84,6 @@ export const decodeTokenFromAdminRequest = (
   }
 };
 
-// export const getAllIntervals = async (
-//   start: Moment,
-//   end: Moment,
-//   intervals: number
-// ): Promise<string[]> => {
-//   const arr: string[] = [];
-//   const difference: number = end.diff(start, "days") / intervals;
-
-//   arr.push(moment(start).format("MMM DD, YYYY"));
-//   let prev: Moment = start;
-
-//   for (let index = 1; index < intervals - 1; index++) {
-//     const newDate: Moment = moment(prev).add(difference, "days");
-//     const formattedDate: string = newDate.format("MMM DD, YYYY");
-//     arr.push(formattedDate);
-//     prev = newDate;
-//   }
-
-//   arr.push(moment(end).format("MMM DD, YYYY"));
-//   return arr;
-// };
 
 export const getAllIntervals = async (
   start: Moment,
@@ -351,4 +330,76 @@ export const calculatePercentageChange = (
   if (previousPrice === 0) return 0; // Avoid division by zero
   const change = ((currentPrice - previousPrice) / previousPrice) * 100;
   return parseFloat(change.toFixed(2)); // Round to 2 decimal places
+};
+
+export const getGroupByAndStartDate = (interval: string) => {
+  let startDate = new Date();
+  let groupBy = null;
+
+  switch (interval) {
+    case "1D":
+      startDate.setHours(startDate.getHours() - 24);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" },
+        halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } },
+        hour: { $hour: "$createdAt" },
+      };
+      break;
+    case "1W":
+      startDate.setDate(startDate.getDate() - 7);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" },
+        halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } },
+        hour: { $hour: "$createdAt" },
+      };
+      break;
+    case "1M":
+      startDate.setMonth(startDate.getMonth() - 1);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" },
+        halfDay: {
+          $cond: [{ $lt: [{ $hour: "$createdAt" }, 12] }, "AM", "PM"],
+        },
+      };
+      break;
+    case "3M":
+      startDate.setMonth(startDate.getMonth() - 3);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" },
+      };
+      break;
+    case "1y":
+      startDate.setFullYear(startDate.getFullYear() - 1);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        halfMonth: {
+          $cond: [
+            { $lt: [{ $dayOfMonth: "$createdAt" }, 15] },
+            "Start",
+            "End",
+          ],
+        },
+      };
+      break;
+    case "All":
+      startDate = new Date(0);
+      groupBy = {
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" },
+      };
+      break;
+    default:
+      throw new Error("Invalid interval");
+  }
+  return { startDate, groupBy };
 };

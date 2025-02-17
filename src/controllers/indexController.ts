@@ -14,6 +14,7 @@ import moment, { Moment } from "moment";
 import {
   calculatePercentages,
   getAllIntervals,
+  getGroupByAndStartDate,
   getOrUpdateFund,
   getUniqueHolders,
   groupDataByDay,
@@ -657,220 +658,12 @@ const indexController = () => {
     }
   };
 
-  // const rebalance = async (req: Request, res: Response) => {
-  //   logger.info(`indexController create an index`);
-  //   try {
-  //     const {
-  //       id,
-  //       newWeights,
-  //       // coins
-  //     } = req.body;
-
-  //     // const coins = []
-  //     // const coinList = JSON.parse(coins);
-
-  //     let weight: number[] = newWeights;
-  //     let weights = weight.map((ele) => new anchor.BN(ele));
-  //     const eventData: RebalanceEvent =  {
-  //       indexId: id,
-  //       weight: weights,
-  //       // coins: coinList
-  //     }
-
-  //     console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
-  //     console.log(eventData, "rebalance eventData")
-  //     // Add event to the Bull queue
-  //     await addEventToQueue('RebalanceIndex', eventData);
-  //     res.status(200).json({ message: "Rebalance event queued successfully" });
-  //   }catch(err){
-  //     logger.error(`Error in rebalance ==> `, err.message);
-  //     sendErrorResponse({
-  //       req,
-  //       res,
-  //       error: err.message,
-  //       statusCode: 500,
-  //     });
-  //   }
-  // }
-
-  // const getChartData = async (req: Request, res: Response) => {
-  //   const { id } = req.params;
-  //   const { interval } = req.query;
-
-  //   try {
-  //     let startDate = new Date();
-  //     let groupBy = null; // Determines grouping level for large datasets
-
-  //     switch (interval) {
-  //       case "1D":
-  //         startDate.setHours(startDate.getHours() - 24);
-  //         break;
-  //       case "1W":
-  //         startDate.setDate(startDate.getDate() - 7);
-  //         break;
-  //       case "1M":
-  //         startDate.setMonth(startDate.getMonth() - 1);
-  //         groupBy = {
-  //           year: { $year: "$createdAt" },
-  //           month: { $month: "$createdAt" },
-  //           day: { $dayOfMonth: "$createdAt" },
-  //           halfDay: {
-  //             $cond: [{ $lt: [{ $hour: "$createdAt" }, 12] }, "AM", "PM"],
-  //           }, // Splitting into AM/PM
-  //         };
-  //         break;
-  //       case "3M":
-  //         startDate.setMonth(startDate.getMonth() - 3);
-  //         groupBy = {
-  //           year: { $year: "$createdAt" },
-  //           month: { $month: "$createdAt" },
-  //           week: { $week: "$createdAt" },
-  //         };
-  //         break;
-  //       case "1Y":
-  //         startDate.setFullYear(startDate.getFullYear() - 1);
-  //         groupBy = {
-  //           year: { $year: "$createdAt" },
-  //           month: { $month: "$createdAt" },
-  //         };
-  //         break;
-  //       case "All":
-  //         startDate = new Date(0); // Get all data
-  //         groupBy = {
-  //           year: { $year: "$createdAt" },
-  //           month: { $month: "$createdAt" },
-  //         };
-  //         break;
-  //       default:
-  //         return res.status(400).json({ error: "Invalid interval" });
-  //     }
-
-  //     let aggregationPipeline: any[] = [
-  //       {
-  //         $match: {
-  //           indexId: new mongoose.Types.ObjectId(id),
-  //           createdAt: { $gte: startDate },
-  //         },
-  //       },
-  //     ];
-
-  //     if (groupBy) {
-  //       // Group for larger intervals
-  //       aggregationPipeline.push(
-  //         {
-  //           $group: {
-  //             _id: groupBy,
-  //             lastRecord: { $last: "$$ROOT" }, // Get last record for each group
-  //           },
-  //         },
-  //         {
-  //           $project: {
-  //             _id: 0,
-  //             timestamp: "$lastRecord.createdAt",
-  //             value: "$lastRecord.price",
-  //           },
-  //         }
-  //       );
-  //     } else {
-  //       // No grouping for smaller intervals (24h, 7d)
-  //       aggregationPipeline.push(
-  //         {
-  //           $project: {
-  //             _id: 0,
-  //             timestamp: "$createdAt",
-  //             value: "$price",
-  //           },
-  //         },
-  //         { $sort: { timestamp: 1 } }
-  //       );
-  //     }
-
-  //     const chartData = await Price.aggregate(aggregationPipeline);
-
-  //     console.log(`chartData (${interval}): `, chartData.length);
-  //     sendSuccessResponse({
-  //       res,
-  //       data: { chart: chartData },
-  //     });
-  //   } catch (error) {
-  //     console.error("Error fetching chart data:", error);
-  //     res.status(500).json({ error: "Internal Server Error" });
-  //   }
-  // };
   const getChartData = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { interval } = req.query;
 
     try {
-      let startDate = new Date();
-      let groupBy = null;
-
-      switch (interval) {
-        case "1D":
-          startDate.setHours(startDate.getHours() - 24);
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            day: { $dayOfMonth: "$createdAt" },
-            halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } }, // Group by 30-minute intervals
-            hour: { $hour: "$createdAt" },
-          };
-        break;
-        case "1W":
-          startDate.setDate(startDate.getDate() - 7);
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            day: { $dayOfMonth: "$createdAt" },
-            halfHour: { $floor: { $divide: [{ $minute: "$createdAt" }, 30] } }, // Group by 30-minute intervals
-            hour: { $hour: "$createdAt" },
-          };
-          break;
-        case "1M":
-          startDate.setMonth(startDate.getMonth() - 1);
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            day: { $dayOfMonth: "$createdAt" },
-            halfDay: {
-              $cond: [{ $lt: [{ $hour: "$createdAt" }, 12] }, "AM", "PM"],
-            },
-          };
-          break;
-        case "3M":
-          startDate.setMonth(startDate.getMonth() - 3);
-
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            day: { $dayOfMonth: "$createdAt" }, // Ensures daily data points
-          };
-          break;
-        case "1y":
-          startDate.setFullYear(startDate.getFullYear() - 1);
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            halfMonth: {
-              $cond: [
-                { $lt: [{ $dayOfMonth: "$createdAt" }, 15] },
-                "Start",
-                "End",
-              ],
-            }, // Two records per month
-          };
-          break;
-        case "All":
-          startDate = new Date(0);
-          groupBy = {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-            day: { $dayOfMonth: "$createdAt" }, // Ensures daily data points
-          };
-          break;
-        default:
-          return res.status(400).json({ error: "Invalid interval" });
-      }
+      const { startDate, groupBy } = getGroupByAndStartDate(interval as string);
 
       let aggregationPipeline: any[] = [
         {
@@ -920,10 +713,9 @@ const indexController = () => {
       });
     } catch (error) {
       console.error("Error fetching chart data:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({ error: error.message || "Internal Server Error" });
     }
   };
-
   const rebalance = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
@@ -1070,88 +862,88 @@ const indexController = () => {
     try {
       const { type } = req.query;
 
-      // Validate the 'type' query parameter with proper type assertion and checking
-      if (!["daily", "weekly", "monthly"].includes(type as string)) {
-        return res.status(400).json({ error: "Invalid type" });
+      // Define allowed types
+      type DateRangeKey = "daily" | "weekly" | "monthly";
+      const allowedTypes: DateRangeKey[] = ["daily", "weekly", "monthly"];
+
+      if (!type || !allowedTypes.includes(type as DateRangeKey)) {
+        return res.status(400).json({ error: "Invalid type parameter" });
       }
 
-      // Define a type for allowed types
-      type DateRangeKey = "daily" | "weekly" | "monthly";
-
-      // Map the string keys to their respective date ranges
       const dateRange: Record<DateRangeKey, number> = {
-        daily: 6,
-        weekly: 6 * 7,
-        monthly: 31 * 7,
+        daily: 1,
+        weekly: 7,
+        monthly: 31,
       };
 
-      // Ensure 'type' is treated as a valid key from the `dateRange` object
+      // Get the date range based on type
       const dateRangeKey = type as DateRangeKey;
+      const endDate = moment().endOf("day").toDate();
+      const startDate = moment()
+        .subtract(dateRange[dateRangeKey], "days")
+        .startOf("day")
+        .toDate();
 
-      // Set the end date to today's date
-      const end: Moment = moment();
-
-      // Calculate the start date by subtracting the specified range from the end date
-      console.log(">> :", dateRange[dateRangeKey]);
-      const start: Moment = moment(end).subtract(
-        dateRange[dateRangeKey],
-        "days"
-      );
-
-      // Assume getAllIntervals is defined elsewhere with proper typing
-      const allIntervals: Date[] = await getAllIntervals(start, end, 7);
-      console.log({ allIntervals });
-      const allIndexes = await GroupCoin.find();
-
-      const data = await Promise.all(
-        allIndexes.map(async (index) => {
-          const viewsArray = [];
-          for (let counter = 0; counter < allIntervals.length; counter++) {
-            const result = await Record.aggregate([
-              {
-                $match: {
-                  indexCoin: index._id, // Filter for a specific indexCoin
-                  createdAt: {
-                    $gt: allIntervals[counter],
-                    $lt: allIntervals[counter + 1] || end,
-                  },
-                },
+      const result = await Record.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $project: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Format date
+            type: 1,
+            amount: 1,
+          },
+        },
+        {
+          $group: {
+            _id: { date: "$date", type: "$type" },
+            totalAmount: { $sum: "$amount" },
+          },
+        },
+        { $sort: { "_id.date": -1 } },
+        {
+          $group: {
+            _id: "$_id.date",
+            deposit: {
+              $sum: {
+                $cond: [{ $eq: ["$_id.type", "deposit"] }, "$totalAmount", 0],
               },
-              {
-                $group: {
-                  _id: "$indexCoin", // Group by unique holder ID
-                  indexCoin: { $first: "$indexCoin" }, // Retain indexCoin for later grouping
-                  totalDeposit: {
-                    $sum: {
-                      $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0],
-                    },
-                  },
-                  totalWithdrawal: {
-                    $sum: {
-                      $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0],
-                    },
-                  },
-                },
+            },
+            withdrawal: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$_id.type", "withdrawal"] },
+                  "$totalAmount",
+                  0,
+                ],
               },
-            ]);
-            viewsArray.push({
-              startDate: moment(allIntervals[counter]).format("MMM DD"),
-              indexCoin: result?.[0]?.indexCoin || index._id,
-              totalDeposit: result?.[0]?.totalDeposit / 100000000 || 0,
-              totalWithdrawal: result?.[0]?.totalWithdrawal / 100000000 || 0,
-            });
-          }
-
-          return {
-            indexId: index._id,
-            ...viewsArray,
-          };
-        })
-      );
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: "$_id",
+            deposit: 1,
+            withdrawal: 1,
+            tvl: {
+              $cond: {
+                if: { $lt: [{ $subtract: ["$deposit", "$withdrawal"] }, 0] },
+                then: 0,
+                else: { $subtract: ["$deposit", "$withdrawal"] },
+              },
+            }, // TVL = Max(deposit - withdrawal, 0)
+          },
+        },
+        { $sort: { date: -1 } },
+      ]);
 
       sendSuccessResponse({
         res,
-        data: data,
+        data: result,
         message: "Fetched all indexes successfully",
       });
     } catch (error) {
@@ -1159,7 +951,6 @@ const indexController = () => {
       res.status(500).json({ message: "Internal Server Error" });
     }
   };
-
   return {
     getAllIndex: getAllIndexV2,
     createIndex,
