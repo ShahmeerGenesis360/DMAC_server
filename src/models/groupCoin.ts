@@ -36,6 +36,7 @@ export interface IGroupCoin extends Document {
   supply: number;
   marketCap: number;
   price: number;
+  pda: string;
 }
 
 // Define the ICoin schema
@@ -83,7 +84,8 @@ const groupCoinSchema = new Schema<IGroupCoin>(
     holders: {type:Number, required:false, default: 0},
     supply: {type: Number, required: false, default: 0},
     marketCap: {type: Number, required: false, default: 0},
-    price: {type: Number, required: false, default:0}
+    price: {type: Number, required: false, default:0},
+    pda: {type: String, required:false}
   },
   { timestamps: true }
 );

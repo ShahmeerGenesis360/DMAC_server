@@ -80,13 +80,30 @@ const indexController = () => {
         feeAmount,
         symbol,
         imageUrl,
+        pda
       } = req.body;
-      const coinList = coins;
-      const faqList = faq;
-      let fee = feeAmount.slice(1, feeAmount.length - 1);
-      fee = parseFloat(feeAmount as string);
-      const processedDetails: ICollectorDetail[] = collectorDetailApi;
+      console.log(
+        name,
+        coins,
+        category,
+        description,
+        faq,
+        mintPublickey,
+        mintKeySecret,
+        tokenAllocations,
+        collectorDetailApi,
+        feeAmount,
+        symbol,
+        imageUrl,
+        pda,"data")
+      console.log(feeAmount, "feeamount")
 
+      const coinList = typeof coins === "string" ? JSON.parse(coins) : coins;
+      const faqList = typeof faq === "string" ? JSON.parse(faq) : faq;
+      const processedDetails: ICollectorDetail[] = typeof collectorDetailApi === "string" ? JSON.parse(collectorDetailApi) : collectorDetailApi;
+
+      // fee = parseFloat(feeAmount as string);
+      console.log(coinList, "coinList")
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -96,9 +113,10 @@ const indexController = () => {
         mintKeySecret,
         mintPublickey,
         collectorDetail: processedDetails,
-        feeAmount: fee,
+        feeAmount: feeAmount,
         category,
         symbol,
+        pda
       });
 
       // Save to the database
