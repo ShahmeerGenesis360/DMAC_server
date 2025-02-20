@@ -6,6 +6,7 @@ import portfolioRouter from "./userPortfolioRoutes";
 import reactionRouter from "./reactionRoute";
 import adminRouter from "./adminRoute";
 import transactionRouter from "./transactionRoute";
+import categoryRouter from "./categoryRoutes";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/portfolio", portfolioRouter);
 router.use("/reaction", reactionRouter);
 router.use("/auth", adminRouter);
 router.use("/transaction", transactionRouter);
+router.use("/category", categoryRouter);
 
 export default router;
