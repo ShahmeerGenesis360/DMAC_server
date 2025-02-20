@@ -719,15 +719,16 @@ const indexController = () => {
   const rebalance = async (req: Request, res: Response) => {
     logger.info(`indexController create an index`);
     try {
-      const { id } = req.body;
-      // const eventData: RebalanceEvent =  {
-      //   indexId: id,
-      // }
+      const { id, coins } = req.body;
+      const eventData: RebalanceEvent =  {
+        indexId: id,
+        coins: coins,
+      }
 
-      // console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
-      // console.log(eventData, "rebalance eventData")
-      // // Add event to the Bull queue
-      // await addEventToQueue('RebalanceIndex', eventData);
+      console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
+      console.log(eventData, "rebalance eventData")
+      // Add event to the Bull queue
+      await addEventToQueue('RebalanceIndex', eventData);
     } catch (err) {
       logger.error(`Error in rebalance ==> `, err.message);
       sendErrorResponse({

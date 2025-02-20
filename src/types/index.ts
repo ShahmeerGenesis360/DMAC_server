@@ -47,6 +47,6 @@ export type SwapResult = {
 
 export type RebalanceEvent = {
   indexId: string,
-  weight: number[],
-  // coins: ICoin[]
+  // weight: number[],
+  coins: ICoin[]
 }
