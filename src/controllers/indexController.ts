@@ -728,7 +728,7 @@ const indexController = () => {
       console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
       console.log(eventData, "rebalance eventData")
       // Add event to the Bull queue
-      await addEventToQueue('RebalanceIndex', eventData);
+      // await addEventToQueue('RebalanceIndex', eventData);
     } catch (err) {
       logger.error(`Error in rebalance ==> `, err.message);
       sendErrorResponse({
