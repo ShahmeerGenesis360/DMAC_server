@@ -175,26 +175,26 @@ async function handleBuyIndexQueue(
         } 
       }
 
-      let createwsolTxId = null;
-      let entries = 0;
-      while(entries < MAX_RETRIES){
-        console.log("wsol sending")
-        entries += 1;
-        console.log(`Attempt #${entries}`);
-        createwsolTxId = await createWsol(program, mintkeypair, keypair, provider);
-        if (createwsolTxId !== null) {
-          console.log(`Transaction completed successfully: ${createwsolTxId}`);
-          break;
-        }
-        else{
-          console.log(`Attempt Failed :( `)
-          if(attempt==MAX_RETRIES){
-            console.log(`Transaction failed after MAX attempt`)
-            return
+      // let createwsolTxId = null;
+      // let entries = 0;
+      // while(entries < MAX_RETRIES){
+      //   console.log("wsol sending")
+      //   entries += 1;
+      //   console.log(`Attempt #${entries}`);
+      //   createwsolTxId = await createWsol(program, mintkeypair, keypair, provider);
+      //   if (createwsolTxId !== null) {
+      //     console.log(`Transaction completed successfully: ${createwsolTxId}`);
+      //     break;
+      //   }
+      //   else{
+      //     console.log(`Attempt Failed :( `)
+      //     if(attempt==MAX_RETRIES){
+      //       console.log(`Transaction failed after MAX attempt`)
+      //       return
             
-          }
-        }
-      }
+      //     }
+      //   }
+      // }
       
 
       for (const coin of index.coins) {
@@ -284,8 +284,8 @@ async function handleBuyIndexQueue(
         console.log(`Attempt #${tries} swap to tokenEnd`);
         swapToTknEndTxHash = await swapToTknEnd(
           program,
-          mintkeypair,
           provider as Provider,
+          mintkeypair,
           collectorPublicKeys
         );
         if(swapToTknEndTxHash!=null){
@@ -322,7 +322,6 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
     try{
         const MAX_RETRIES = 5;
         let allTxHash = [];
-        let globalInstructions: TransactionInstruction[] = [];
         let userPubKey:PublicKey = await getTransactionReceipt(eventData.signature)
         console.log(userPubKey, "userPub")
         console.log(eventData, "Event data")
@@ -527,57 +526,60 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
         Buffer.from(mintKeySecret, "base64")
     );
     const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
-    // while(attempt < MAX_RETRIES){
-    //   console.log("swap to token start rebalance")
-    //   attempt += 1;
-    //   console.log(`Attempt #${attempt}`);
-    //   swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, eventData.weight,  provider as Provider );
-    //   if (swapToTknStartRebalanceTxHash !== null) {
-    //     console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
-    //     break;
-    //   }
-    //   else{
-    //     console.log(`Attempt Failed :( `)
-    //     if(attempt==MAX_RETRIES){
-    //       console.log(`Transaction failed after MAX attempt`)
-    //       return
+    const weights = eventData.coins.map((coin)=>{
+      return new anchor.BN(coin.proportion*100)
+    })
+    while(attempt < MAX_RETRIES){
+      console.log("swap to token start rebalance")
+      attempt += 1;
+      console.log(`Attempt #${attempt}`);
+      swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, weights,  provider as Provider );
+      if (swapToTknStartRebalanceTxHash !== null) {
+        console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
+        break;
+      }
+      else{
+        console.log(`Attempt Failed :( `)
+        if(attempt==MAX_RETRIES){
+          console.log(`Transaction failed after MAX attempt`)
+          return
             
-    //     }
-    //   } 
-    // }
+        }
+      } 
+    }
 
     for(const coin of index.coins){
       let tries = 0
       let txId = null;
 
 
-      const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
-      console.log(data, "pda data")
+      // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
+      // console.log(data, "pda data")
 
-      // while(tries < MAX_RETRIES){
-      //   console.log("Attempting rebalance swap token ", coin.coinName)
-      //   tries++
-      //   console.log(`Attempt #${tries}`);; 
+      while(tries < MAX_RETRIES){
+        console.log("Attempting rebalance swap token ", coin.coinName)
+        tries++
+        console.log(`Attempt #${tries}`);; 
 
-      //   const data = await fetchIndexInfo(connection, mintkeypair.publicKey)
-      //   console.log(data)
-      //   let buy = true                //needs to be changed
-      //   let amount = 1
-      //   txId = await rebalanceIndex(program, provider as Provider, mintkeypair, mintkeypair.publicKey, buy, amount);
-      //   if (txId !== null) {
-      //     console.log(`Transaction completed successfully: ${txId}`);
-      //     allTxHash.push(txId)
-      //     break;
-      //   }
-      //   else{
-      //     console.log(`Attempt Failed :( `)
-      //     if(attempt==MAX_RETRIES){
-      //       console.log(`Transaction failed after MAX attempt`)
-      //       return
+        // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
+        // console.log(data)
+        let buy = true                //needs to be changed
+        let amount = 1
+        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, mintkeypair.publicKey, buy, amount);
+        if (txId !== null) {
+          console.log(`Transaction completed successfully: ${txId}`);
+          allTxHash.push(txId)
+          break;
+        }
+        else{
+          console.log(`Attempt Failed :( `)
+          if(attempt==MAX_RETRIES){
+            console.log(`Transaction failed after MAX attempt`)
+            return
               
-      //     }
-      //   } 
-      // }
+          }
+        } 
+      }
     }
     for (const txHash of allTxHash) {
       await confirmFinalized(txHash);

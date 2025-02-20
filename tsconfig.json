@@ -3,7 +3,7 @@
       "module": "commonjs",                   // Use commonjs modules for Node.js
       "esModuleInterop": true,                // Allow interop between CommonJS and ES modules
       "target": "es2017",                        // Compile to ES6 (or ES2017)
-      "moduleResolution": "node",             // Resolve modules using Node.js module resolution
+      "moduleResolution": "Node",             // Resolve modules using Node.js module resolution
       "sourceMap": true,                      // Generate source maps for debugging
       "outDir": "build",                      // Place compiled JS files in the 'build' directory
       "baseUrl": ".",                         // Set base URL for non-relative imports

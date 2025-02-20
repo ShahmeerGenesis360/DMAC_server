@@ -1,7 +1,7 @@
 import {config} from "../config/index"
 import Bull, { Job } from 'bull';
-import {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue} from './eventQueueHandler'
-import {DmacBuyIndexEvent, DmacSellIndexEvent} from "../types/index"
+import {handleBuyIndexQueue, handleCreateIndexQueue, handleSellIndexQueue, handleRebalanceIndex} from './eventQueueHandler'
+import {DmacBuyIndexEvent, DmacSellIndexEvent, RebalanceEvent} from "../types/index"
 import { io } from "../eventListener";
 
 
@@ -51,9 +51,9 @@ eventQueue.process(async (job: Job<JobData>) => {
         await handleSellIndexEvent(eventData);
         break;
 
-      // case 'RebalanceIndex':
-      //   await handleRebalance(eventData);
-      //   break;
+      case 'RebalanceIndex':
+        await handleRebalance(eventData);
+        break;
 
       default:
         console.log(`Unknown event: ${eventName}`);
@@ -83,6 +83,11 @@ async function handleBuyIndexEvent(eventData: DmacBuyIndexEvent): Promise<void> 
 async function handleSellIndexEvent(eventData: DmacSellIndexEvent): Promise<void>{
   console.log("Handling Sell Index Event...");
   await handleSellIndexQueue(eventData)
+}
+
+async function handleRebalance(eventData: RebalanceEvent): Promise<void>{
+  console.log("Handling Rebalance Index Event...");
+  await handleRebalanceIndex(eventData)
 }
 
 // Add job to the queue (this function will be called when the event is received)

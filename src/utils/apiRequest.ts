@@ -45,6 +45,7 @@ import {
   rebalanceIndexTokens,
 } from "./web3";
 import * as borsh from "@coral-xyz/borsh";
+import { Provider } from "@project-serum/anchor";
 // import { collect } from "./test";
 
 // import {
@@ -474,31 +475,31 @@ export async function swapToTknStart(
 ) {
   try{
     const mintPublicKey = mintKeypair.publicKey;
-    const getIndexInfo = getIndexInfoPda(mintPublicKey);
-    console.log(getIndexInfo);
 
     const accounts = {
       programState: programState,
       admin: adminPublicKey,
       indexMint: mintPublicKey,
-      indexInfo: getIndexInfo,
+      indexInfo: getIndexInfoPda(mintPublicKey),
       swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
       systemProgram: SYSTEM_PROGRAM_ID,
     };
-    let transaction = await program.rpc.swapToTknStart({
+    // console.log("accounts: ", accounts);
+
+    let txHash = await program.rpc.swapToTknStart({
       accounts: accounts,
       signers: [adminKeypair],
     });
-
-    const confirmation = await provider.connection.confirmTransaction(transaction,"finalized")
+    const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
     
     if (confirmation.value.err) {
-      console.error(`Transaction failed: ${transaction}`)
+      console.error(`Transaction failed: ${txHash}`)
       return null
     } else {
-      console.log(`Transaction confirmed: ${transaction}`);
-      return transaction; // Exit the retry loop if successful
+      console.log(`Transaction confirmed: ${txHash}`);
+      return txHash; // Exit the retry loop if successful
     }
+
   }catch(err){
     console.log(err)
     return null
@@ -675,31 +676,28 @@ export async function swapToTkn(
 
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-  let result: any = null;
+  let result = null;
 
-  // Find the best Quote from the Jupiter API
-  const quote: any = await getQuote(SOL, tokenPublicKey, amountInSol);
-  console.log(quote, "quote")
   const tokenProgramId = await getTokenProgramId(
     provider.connection,
     tokenPublicKey
   );
-  
-  // Convert the Quote into a Swap instruction
-  const tokenAccount = getAssociatedTokenAddressSync(
-    tokenPublicKey,
-    adminPublicKey,
-    false,
-    tokenProgramId
-  );
 
-  console.log(
-    tokenAccount,
-    tokenPublicKey,
-    tokenProgramId,
-    adminKeypair.publicKey.toString(),
-    "tokenAccount"
-  );
+
+  const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
+
+  const tokenAccount = (
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      adminKeypair,
+      tokenPublicKey,
+      adminPublicKey,
+      false, // allowOwnerOffCurve
+      "confirmed", // commitment
+      null, // confirmOptions
+      tokenProgramId // The correct token program ID
+    )
+  ).address;
   result = await getSwapIx(adminPublicKey, tokenAccount, quote);
 
   if ("error" in result) {
@@ -713,9 +711,10 @@ export async function swapToTkn(
     addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
   } = result;
 
-  const  txID = await swapToToken(
+  const txHash = await swapToToken(
     program,
     provider,
+    tokenPublicKey,
     adminKeypair,
     programState,
     mintPublicKey,
@@ -724,10 +723,10 @@ export async function swapToTkn(
     computeBudgetInstructions,
     swapInstruction,
     addressLookupTableAddresses
-    // keypair
   );
+
+  return txHash;
   // await updateCoinAmount(groupCoinId, coinAddress, quote.outAmount);
-  return txID ;
   }catch(err){
     return null
   }
@@ -772,46 +771,53 @@ export async function swapToTkn(
 
 export async function swapToTknEnd(
   program: Program,
-  mintKeypair: Keypair,
   provider: anchor.Provider,
-  // keypair: Keypair,
+  mintKeypair: Keypair,
   collectorPublicKeys: PublicKey[]
 ) {
-  const accounts = {
-    programState: programState,
-    admin: adminPublicKey,
-    indexMint: mintKeypair.publicKey,
-    indexInfo: getIndexInfoPda(mintKeypair.publicKey),
-    swapToTknInfo: getSwapToTknInfoPda(mintKeypair.publicKey),
-    systemProgram: SYSTEM_PROGRAM_ID,
-  };
-  // console.log("accounts: ", accounts);
-  const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
-    pubkey,
-    isSigner: false,
-    isWritable: true,
-  }));
+  try{
+    const mintPublicKey = mintKeypair.publicKey;
 
-  let txHash = await program.rpc.swapToTknEnd({
-    accounts: accounts,
-    remainingAccounts: remainingAccounts,
-    signers: [adminKeypair],
-  });
+    const accounts = {
+      programState: programState,
+      admin: adminPublicKey,
+      indexMint: mintPublicKey,
+      indexInfo: getIndexInfoPda(mintPublicKey),
+      swapToTknInfo: getSwapToTknInfoPda(mintPublicKey),
+      systemProgram: SYSTEM_PROGRAM_ID,
+      // programAuthorityPda: programAuthorityPda,
+    };
+    // console.log("accounts: ", accounts);
+    const remainingAccounts = collectorPublicKeys.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: true,
+    }));
 
-  const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
-  
-  if (confirmation.value.err) {
-    console.error(`Transaction failed: ${txHash}`);
-    txHash = await swapToTknEnd(program, mintKeypair, provider, collectorPublicKeys)
-  } else {
-    console.log(`Transaction confirmed: ${txHash}`);
-    return txHash; // Exit the retry loop if successful
+    let txHash = await program.rpc.swapToTknEnd({
+      accounts: accounts,
+      remainingAccounts: remainingAccounts,
+      signers: [adminKeypair],
+    });
+
+    const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
+    
+    if (confirmation.value.err) {
+      console.error(`Transaction failed: ${txHash}`);
+      txHash = null
+    } else {
+      console.log(`Transaction confirmed: ${txHash}`);
+      return txHash; // Exit the retry loop if successful
+    }
+
+    // Return instructions (no transactions created or signed here)
+    return txHash
+
+  }catch(err){
+    console.error(err);
+    return null
   }
-
-  // Return instructions (no transactions created or signed here)
-  return txHash
-
-  // return { versionedTransaction3 };
+  
 }
 
 export async function swapToSol(
@@ -825,46 +831,43 @@ export async function swapToSol(
   try{
     const mintPublicKey = mintKeypair.publicKey;
 
-  const SOL = new PublicKey("So11111111111111111111111111111111111111112");
+    const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-  let result: any = null;
-    // Find the best Quote from the Jupiter API
-    const quote: any = await getQuote(tokenPublicKey, SOL, amountInToken);
-    console.log(quote, "quote")
-    if(quote.error!=null){
-      console.log("quote not there ")
-      return null
-    }
+    let result = null;
+
+    const quote = await getQuote(tokenPublicKey, SOL, amountInToken);
+
     // Convert the Quote into a Swap instruction
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
     result = await getSwapIx(adminPublicKey, programWSOLAccount, quote);
 
     if ("error" in result) {
-      console.log({ result }, "error in getting swap instruction");
-      return null;
+      console.log({ result });
+      return result;
     }
-
-  // We have now both the instruction and the lookup table addresses.
-  const {
-    computeBudgetInstructions, // The necessary instructions to setup the compute budget.
-    swapInstruction, // The actual swap instruction.
-    addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
-  } = result;
-
-  const txID = await swapToSolana(
-    program,
-    provider,
-    adminKeypair,
-    programState,
-    mintPublicKey,
-    getIndexInfoPda(mintPublicKey),
-    getSwapToSolInfoPda(mintPublicKey, userPublicKey),
-    userPublicKey,
-    computeBudgetInstructions,
-    swapInstruction,
-    addressLookupTableAddresses
-  );
-  return txID;
+    const {
+      computeBudgetInstructions, // The necessary instructions to setup the compute budget.
+      swapInstruction, // The actual swap instruction.
+      addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
+    } = result;
+  
+    const txHash = await swapToSolana(
+      program,
+      provider,
+      tokenPublicKey,
+      adminKeypair,
+      programState,
+      mintPublicKey,
+      getIndexInfoPda(mintPublicKey),
+      getSwapToSolInfoPda(mintPublicKey, userPublicKey),
+      userPublicKey,
+      computeBudgetInstructions,
+      swapInstruction,
+      addressLookupTableAddresses,
+      amountInToken
+    );
+  
+    return txHash;
   }catch(err){
     console.log("erron in swapToSol", JSON.stringify(err))
     return null
@@ -977,7 +980,7 @@ export async function swapToSolEnd(
   collectorPublicKeys: PublicKey[]
 ): Promise< string> {
   try {
-    const mintPublicKey = mintKeypair.publicKey;
+  const mintPublicKey = mintKeypair.publicKey;
 
   const accounts = {
     programState: programState,
@@ -1013,7 +1016,7 @@ export async function swapToSolEnd(
 
   } catch (error) {
     console.error("Error generating swapToSolEnd instruction:", error);
-    throw error;
+    return null
   }
 }
 
@@ -1036,7 +1039,7 @@ export async function rebalanceIndexStart(
       systemProgram: SYSTEM_PROGRAM_ID,
     };
     // console.log("accounts: ", accounts);
-
+  
     let txHash = await program.rpc.rebalanceIndexStart(weights, {
       accounts: accounts,
       signers: [adminKeypair],
@@ -1073,7 +1076,8 @@ export async function rebalanceIndex(
 
     const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-    let result: any = null;
+    let result = null;
+
 
       let quote = null;
       let tokenAccount = null;
@@ -1159,6 +1163,7 @@ export async function rebalanceIndex(
     const txHash = await rebalanceIndexTokens(
       program,
       provider,
+      tokenPublicKey,
       adminKeypair,
       programState,
       mintPublicKey,
@@ -1166,7 +1171,8 @@ export async function rebalanceIndex(
       getRebalanceIndexInfoPda(mintPublicKey),
       computeBudgetInstructions,
       swapInstruction,
-      addressLookupTableAddresses
+      addressLookupTableAddresses,
+      amount
     );
 
     return txHash;
