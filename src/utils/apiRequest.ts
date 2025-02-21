@@ -490,6 +490,7 @@ export async function swapToTknStart(
       accounts: accounts,
       signers: [adminKeypair],
     });
+    console.log(txHash, "txnHash")
     const confirmation = await provider.connection.confirmTransaction(txHash,"finalized")
     
     if (confirmation.value.err) {
@@ -501,7 +502,7 @@ export async function swapToTknStart(
     }
 
   }catch(err){
-    console.log(err)
+    console.log("swap to token start failed: ",err)
     return null
   }
   

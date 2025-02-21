@@ -175,6 +175,8 @@ async function handleBuyIndexQueue(
         } 
       }
 
+
+
       // let createwsolTxId = null;
       // let entries = 0;
       // while(entries < MAX_RETRIES){
