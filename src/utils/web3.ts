@@ -424,9 +424,9 @@ export const swapToSolana = async (
     instructions,
   }).compileToV0Message(addressLookupTableAccounts);
   const transaction = new VersionedTransaction(messageV0);
-
+  transaction.sign([adminKeypair]);
   let txID = await connection.sendTransaction(transaction, {
-    skipPreflight: true,
+    skipPreflight: false,
     preflightCommitment: "confirmed",
   });
 
@@ -534,9 +534,9 @@ export const swapToToken = async (
     instructions,
   }).compileToV0Message(addressLookupTableAccounts);
   const transaction = new VersionedTransaction(messageV0);
-  
+  transaction.sign([adminKeypair])
   let txID = await connection.sendTransaction(transaction, {
-    skipPreflight: true,
+    skipPreflight: false,
     preflightCommitment: "confirmed",
   });
   

@@ -3,9 +3,13 @@ import listenForEvents from './events/eventListener';
 import Mongo from './config/database';
 import http from "http";
 import { Server } from "socket.io";
+import rebalanceRouter from './eventListenerRoutes';
 
 const app = express();
 const PORT = process.env.PORT_EVENT || 3000;
+
+app.use(express.json()); // Parse JSON bodies for POST requests
+app.use('/api', rebalanceRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, {

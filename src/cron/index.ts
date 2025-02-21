@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { IndexFund } from "../models/indexFund";
+import { LiquidityLocked } from "../models/liquidityLocked";
 import { GroupCoin } from "../models/groupCoin";
 import { GroupCoinHistory } from "../models/groupCoinHistory";
 import indexService from "../service/indexService";
@@ -77,8 +78,9 @@ async function updateCoins(): Promise<void>{
       const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
       const supply = await fetchTokenSupply(mintPublickey);
       const holders = await getTokenHolders(mintPublickey);
-      const price = await calculateIndexPrice(index,"2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
-      const marketCap = await calculateMarketCap(index, "2LYa8F6T2iPd4uaxM7hu3ctKXXtHnBPgP5YzCETrFgiT");
+      const pdaAddress = index.pda.slice(1, index.mintPublickey.length - 1);
+      const price = await calculateIndexPrice(index,pdaAddress);
+      const marketCap = await calculateMarketCap(index, pdaAddress);
       await GroupCoin.findOneAndUpdate( { _id: index._id },
         {
           holders: holders,
@@ -102,8 +104,29 @@ async function updateCoins(): Promise<void>{
   }
 }
 
+async function updateTotalValueLocked(): Promise<void>{
+  try{
+    const allIndex = await GroupCoin.find({});
+    let totalSum = 0;
+    for (const index of allIndex) {
+      totalSum += index.marketCap
+    }
+    console.log(totalSum, "total liquidity")
+    await LiquidityLocked.create({
+      liquidity: totalSum,
+      time: Date.now(),
+    })
+
+  }catch(err){
+    console.error("Error updating total value locked:", err);
+  }
+}
+
 const cronSchedule = "*/30 * * * * *";
+const cronSchedule2 = "*/5 * * * *";
 const job = cron.schedule(cronSchedule, updateGroupCoinHistory);
 const job2 = cron.schedule(cronSchedule, updateCoins);
+const job3 = cron.schedule(cronSchedule2, updateTotalValueLocked);
 job.start();
-job2.start()
+job2.start();
+job3.start();

@@ -175,6 +175,8 @@ async function handleBuyIndexQueue(
         } 
       }
 
+
+
       // let createwsolTxId = null;
       // let entries = 0;
       // while(entries < MAX_RETRIES){
@@ -263,7 +265,7 @@ async function handleBuyIndexQueue(
           // user: eventData.userAddress,
           type: "deposit", // Enum for transaction type
           indexCoin: index._id,
-          amount: amount, // Either deposit or withdrawal amount
+          amount: (coin.proportion / 100) * Number(eventData.deposited), // Either deposit or withdrawal amount
           tokenAddress: coin.address,
         });
         await record.save();
@@ -301,12 +303,12 @@ async function handleBuyIndexQueue(
           }
         }
       }
-  
+      const solPrice = await fetchSolanaUsdPrice();
       index.collectorDetail.forEach(async (item) => {
         const adminReward = new AdminReward({
           adminAddress: item.collector,
           type: "buy",
-          amount: Number(eventData.adminFee),
+          amount: (Number(eventData.adminFee) / LAMPORTS_PER_SOL) * solPrice,
           indexCoin: index._id,
         });
         await adminReward.save();
@@ -392,7 +394,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               new: true,
             });
 
-            const recordAmount = Math.round(Number(eventData.withdrawn) * (coin.proportion /100) * LAMPORTS_PER_SOL)
+            const recordAmount = Math.round(Number(eventData.withdrawn) * (coin.proportion /100) * tokenPrice.sol)
             const record = new Record({
                 // user: eventData.userAddress,
                 type: "withdrawal", // Enum for transaction type
@@ -494,12 +496,12 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         //     // Handle any failure to send the batch here
         //   }
         // }
-    
+        const solPrice = await fetchSolanaUsdPrice();
         index.collectorDetail.forEach(async (item) => {
           const adminReward = new AdminReward({
             adminAddress: item.collector,
             type: "sell",
-            amount: Number(eventData.adminFee),
+            amount: Number(eventData.adminFee) * solPrice,
             indexCoin: index._id,
           });
           await adminReward.save();
