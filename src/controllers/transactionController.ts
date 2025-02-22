@@ -8,71 +8,74 @@ import { AdminReward } from "../models/adminReward";
 
 const transactionController = () => {
   const getTransactions = async (req: Request, res: Response) => {
-    const { type } = req.query;
-
-    // Validate the 'type' query parameter with proper type assertion and checking
-    if (!["daily", "weekly", "monthly"].includes(type as string)) {
-      return res.status(400).json({ error: "Invalid type" });
-    }
-
-    // Define a type for allowed types
-    type DateRangeKey = "daily" | "weekly" | "monthly";
-
-    // Map the string keys to their respective date ranges
-    const dateRange: Record<DateRangeKey, number> = {
-      daily: 6,
-      weekly: 6 * 7,
-      monthly: 31 * 7,
-    };
-
-    // Ensure 'type' is treated as a valid key from the `dateRange` object
-    const dateRangeKey = type as DateRangeKey;
-
-    // Set the end date to today's date
-    const end: Moment = moment();
-
-    // Calculate the start date by subtracting the specified range from the end date
-    console.log(">> :", dateRange[dateRangeKey]);
-    const start: Moment = moment(end).subtract(dateRange[dateRangeKey], "days");
-
-    // Assume getAllIntervals is defined elsewhere with proper typing
-    const allIntervals: Date[] = await getAllIntervals(start, end, 7);
-
-    // Log or return the intervals as required
-    console.log("All Intervals length:", allIntervals?.length);
-    console.log("All Intervals:", allIntervals);
     try {
-      const viewsArray = [];
-      for (let index = 0; index < allIntervals.length; index++) {
-        const results = await Record.find({
-          createdAt: {
-            $gt: allIntervals[index],
-            $lt: allIntervals[index + 1] || end,
-          },
-        });
+      const { type } = req.query;
 
-        // Use reduce to calculate the total amount for the interval
-        const { totaldeposit, totalwithdrawl } = results.reduce(
-          (acc, item) => {
-            if (item.type === "deposit") {
-              acc.totaldeposit += item.amount || 0; // Add amount or default to 0 if undefined
-            } else {
-              acc.totalwithdrawl += item.amount || 0; // Add amount or default to 0 if undefined
-            }
-            return acc; // Ensure accumulator is returned
-          },
-          { totaldeposit: 0, totalwithdrawl: 0 } // Correctly formatted initial accumulator
-        );
+      // Define allowed types
+      type DateRangeKey = "daily" | "weekly" | "monthly";
+      const allowedTypes: DateRangeKey[] = ["daily", "weekly", "monthly"];
 
-        viewsArray.push({
-          startDate: moment(allIntervals[index]).format("MMM DD"),
-          totaldeposit: totaldeposit / 1000000000,
-          totalwithdrawl: totalwithdrawl / 1000000000,
-        });
+      if (!type || !allowedTypes.includes(type as DateRangeKey)) {
+        return res.status(400).json({ error: "Invalid type parameter" });
       }
-      res.json({ data: viewsArray });
-    } catch (err) {
-      res.status(500).json({ error: "Server error", details: err.message });
+
+      const dateRange: Record<DateRangeKey, number> = {
+        daily: 6,
+        weekly: 6 * 7,
+        monthly: 31 * 7,
+      };
+
+      // Get the date range based on type
+      const dateRangeKey = type as DateRangeKey;
+      const endDate = moment().endOf("day").toDate();
+      const startDate = moment()
+        .subtract(dateRange[dateRangeKey], "days")
+        .startOf("day")
+        .toDate();
+
+      const result = await Record.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $project: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            amount: 1,
+            type: 1,
+          },
+        },
+        {
+          $group: {
+            _id: "$date",
+            totaldeposit: {
+              $sum: { $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0] },
+            },
+            totalwithdrawal: {
+              $sum: { $cond: [{ $eq: ["$type", "withdrawal"] }, "$amount", 0] },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: "$_id",
+            totaldeposit: 1,
+            totalwithdrawal: 1,
+          },
+        },
+        { $sort: { date: -1 } },
+      ]);
+
+      sendSuccessResponse({
+        res,
+        data: result,
+        message: "Fetched all transactions successfully",
+      });
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ message: "Internal Server Error" });
     }
   };
 
