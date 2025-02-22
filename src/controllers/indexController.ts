@@ -28,6 +28,7 @@ import { addEventToQueue } from "../queue/eventQueue";
 import { RebalanceEvent } from "../types";
 import * as anchor from "@coral-xyz/anchor";
 import { Price } from "../models/price";
+import { LiquidityLocked } from "../models/liquidityLocked";
 // import { addEventToQueue } from '../queue/eventQueue';
 // import { RebalanceEvent } from "../types";
 
@@ -80,7 +81,7 @@ const indexController = () => {
         feeAmount,
         symbol,
         imageUrl,
-        pda
+        pda,
       } = req.body;
       console.log(
         name,
@@ -95,15 +96,20 @@ const indexController = () => {
         feeAmount,
         symbol,
         imageUrl,
-        pda,"data")
-      console.log(feeAmount, "feeamount")
+        pda,
+        "data"
+      );
+      console.log(feeAmount, "feeamount");
 
       const coinList = typeof coins === "string" ? JSON.parse(coins) : coins;
       const faqList = typeof faq === "string" ? JSON.parse(faq) : faq;
-      const processedDetails: ICollectorDetail[] = typeof collectorDetailApi === "string" ? JSON.parse(collectorDetailApi) : collectorDetailApi;
+      const processedDetails: ICollectorDetail[] =
+        typeof collectorDetailApi === "string"
+          ? JSON.parse(collectorDetailApi)
+          : collectorDetailApi;
 
       // fee = parseFloat(feeAmount as string);
-      console.log(coinList, "coinList")
+      console.log(coinList, "coinList");
       const groupCoin = new GroupCoin({
         name,
         coins: coinList,
@@ -116,7 +122,7 @@ const indexController = () => {
         feeAmount: feeAmount,
         category,
         symbol,
-        pda
+        pda,
       });
 
       // Save to the database
@@ -738,13 +744,13 @@ const indexController = () => {
     logger.info(`indexController create an index`);
     try {
       const { id, coins } = req.body;
-      const eventData: RebalanceEvent =  {
+      const eventData: RebalanceEvent = {
         indexId: id,
         coins: coins,
-      }
+      };
 
       console.log(`DMAC Rebalance: Mint=${eventData.indexId}}`);
-      console.log(eventData, "rebalance eventData")
+      console.log(eventData, "rebalance eventData");
       // Add event to the Bull queue
       // await addEventToQueue('RebalanceIndex', eventData);
     } catch (err) {
@@ -903,7 +909,7 @@ const indexController = () => {
         .startOf("day")
         .toDate();
 
-      const result = await Record.aggregate([
+      const result = await LiquidityLocked.aggregate([
         {
           $match: {
             createdAt: { $gte: startDate, $lte: endDate },
@@ -912,49 +918,20 @@ const indexController = () => {
         {
           $project: {
             date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Format date
-            type: 1,
-            amount: 1,
+            liquidity: 1,
           },
         },
         {
           $group: {
-            _id: { date: "$date", type: "$type" },
-            totalAmount: { $sum: "$amount" },
-          },
-        },
-        { $sort: { "_id.date": -1 } },
-        {
-          $group: {
-            _id: "$_id.date",
-            deposit: {
-              $sum: {
-                $cond: [{ $eq: ["$_id.type", "deposit"] }, "$totalAmount", 0],
-              },
-            },
-            withdrawal: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$_id.type", "withdrawal"] },
-                  "$totalAmount",
-                  0,
-                ],
-              },
-            },
+            _id: "$date",
+            tvl: { $sum: "$liquidity" },
           },
         },
         {
           $project: {
             _id: 0,
             date: "$_id",
-            deposit: 1,
-            withdrawal: 1,
-            tvl: {
-              $cond: {
-                if: { $lt: [{ $subtract: ["$deposit", "$withdrawal"] }, 0] },
-                then: 0,
-                else: { $subtract: ["$deposit", "$withdrawal"] },
-              },
-            }, // TVL = Max(deposit - withdrawal, 0)
+            tvl: 1,
           },
         },
         { $sort: { date: -1 } },
