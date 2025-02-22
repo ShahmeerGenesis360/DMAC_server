@@ -63,25 +63,26 @@ export const fetchBalance = async(tokenName: string,tokenPublicKey: string, pdaA
   try{
 
     const tokenProgramID = await getTokenProgramId(connection, new PublicKey(tokenPublicKey));
+    console.log(tokenProgramID,pdaAddress ,"tokenProgramId")
     const tokenAccount = getAssociatedTokenAddressSync(
       new PublicKey(tokenPublicKey),
       new PublicKey(pdaAddress),
-      false,
+      true,
       tokenProgramID
     );
-    
+    console.log(tokenAccount, "accountInfo1")
     const accountInfo = await getAccount(
       connection,
       tokenAccount,
       "confirmed",
       tokenProgramID
     );
-
+      console.log(accountInfo, "accountInfo")
     const tokenBalance = Number(accountInfo.amount) / (10 ** decimals[tokenName]);
     console.log(tokenBalance, "tokenBalance")
     return tokenBalance;
   }catch(err){
-    console.error("❌ Error fetching token balance:", err.message);
+    console.error("❌ Error fetching token balance:", err);
     return 0;
   }
 }
@@ -110,6 +111,7 @@ export const calculateIndexPrice = async (index: IGroupCoin, pdaAddress: string)
 
   
       for (const token of index.coins) {
+        console.log(token.address, token.coinName, "tokenDetails")
         const balance = await fetchBalance(token.coinName, token.address, pdaAddress)
         const tokenPriceInSol = await getTokenPriceInSol(token.address);
         const tokenPriceInUsd = tokenPriceInSol;

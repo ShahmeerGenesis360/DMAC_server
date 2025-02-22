@@ -139,7 +139,6 @@ async function handleBuyIndexQueue(
       let MAX_RETRIES = 5
       let allTxHashes: string[] = []
       let indexPublicKey = eventData.index_mint.toString();
-
       indexPublicKey = `"${indexPublicKey}"`;
       const index = await GroupCoin.findOne({ mintPublickey: indexPublicKey });
       let mintKeySecret = index.mintKeySecret;
@@ -354,7 +353,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               console.log(coin.coinName, coin.address, "name address")
               tokenDecimals = decimals[coin.coinName]
               console.log(tokenPrice, tokenDecimals, "decimal")
-              amount = ((((Number(eventData.withdrawn) + Number(eventData.adminFee)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
+              amount = ((((Number(eventData.withdrawn) + (Number(eventData.adminFee)/index.coins.length)) * (coin.proportion /100)) * tokenPrice.sol)/tokenPrice.token) * Math.pow(10,tokenDecimals); 
               console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
@@ -562,10 +561,10 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
         console.log("Attempting rebalance swap token ", coin.coinName)
         tries++
         console.log(`Attempt #${tries}`);; 
-
+        
         // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
         // console.log(data)
-        let buy = true                //needs to be changed
+        let buy = true      
         let amount = 1
         txId = await rebalanceIndex(program, provider as Provider, mintkeypair, mintkeypair.publicKey, buy, amount);
         if (txId !== null) {
