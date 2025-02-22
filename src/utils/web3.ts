@@ -356,7 +356,7 @@ export const swapToSolana = async (
   amountInToken: number
 ): Promise<string> => {
   try {
-    let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
+  let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
   const programAuthority = findProgramAuthority(program.programId);
   console.log(programAuthority, "programAuthority")
   const programWSOLAccount = findProgramWSOLAccount(program.programId);
@@ -479,6 +479,40 @@ export const swapToToken = async (
   const adminPublicKey = adminKeypair.publicKey;
   const connection = provider.connection;
 
+  const wsolTokenAccount = (await getOrCreateAssociatedTokenAccount(
+    provider.connection,
+    adminKeypair,
+    NATIVE_MINT,
+    adminPublicKey,
+    false,
+    "confirmed",
+    null,
+    await getTokenProgramId(provider.connection, NATIVE_MINT)
+  )).address;
+  
+  const adminTokenAccount = (await getOrCreateAssociatedTokenAccount(
+    provider.connection,
+    adminKeypair,
+    tokenPublicKey,
+    adminPublicKey,
+    false,
+    "confirmed",
+    null,
+    await getTokenProgramId(provider.connection, tokenPublicKey)
+  )).address;
+  
+  const pdaTokenAccount = (await getOrCreateAssociatedTokenAccount(
+    provider.connection,
+    adminKeypair,
+    tokenPublicKey,
+    getProgramAuthority(),
+    true,
+    "confirmed",
+    null,
+    await getTokenProgramId(provider.connection, tokenPublicKey)
+  )).address;
+  
+
   const instructions = [
     ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
     await program.methods
@@ -494,14 +528,11 @@ export const swapToToken = async (
 
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
 
-        wsolTokenAccount: findAssociatedTokenAddress(
-          {walletAddress: adminPublicKey, tokenMintAddress: NATIVE_MINT}),
+        wsolTokenAccount: wsolTokenAccount,
 
         tokenMint: tokenPublicKey,
-        adminTokenAccount: findAssociatedTokenAddress(
-          {walletAddress: adminPublicKey, tokenMintAddress: tokenPublicKey}),
-        pdaTokenAccount: findAssociatedTokenAddress(
-          {walletAddress: getProgramAuthority(), tokenMintAddress: tokenPublicKey}),
+        adminTokenAccount: adminTokenAccount,
+        pdaTokenAccount: pdaTokenAccount,
 
         // wsolTokenAccount: (await getOrCreateAssociatedTokenAccount(
         //       provider.connection,
