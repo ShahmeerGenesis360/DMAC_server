@@ -567,7 +567,7 @@ export const swapToToken = async (
   const transaction = new VersionedTransaction(messageV0);
   transaction.sign([adminKeypair])
   let txID = await connection.sendTransaction(transaction, {
-    skipPreflight: false,
+    skipPreflight: true,
     preflightCommitment: "confirmed",
   });
   
