@@ -416,9 +416,28 @@ const indexController = () => {
         });
         return;
       }
+      const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+      // Aggregate deposits and withdrawals within the last 24 hours
+      const volume = await Record.aggregate([
+        {
+          $match: {
+            indexCoin: new mongoose.Types.ObjectId(id),
+            timestamp: { $gte: twentyFourHoursAgo },
+          },
+        },
+        {
+          $group: {
+            _id: "$indexCoin",
+            totalVolume: { $sum: "$amount" },
+          },
+        },
+      ]);
+
+      const totalVolume = volume.length > 0 ? volume[0].totalVolume : 0;
       sendSuccessResponse({
         res,
-        data: index,
+        data: { totalVolume, ...index.toObject() },
         message: "Fetched index successfully",
       });
     } catch (error) {
@@ -728,7 +747,7 @@ const indexController = () => {
         );
       }
 
-      const chartData = await GroupCoinHistory.aggregate(aggregationPipeline);
+      const chartData = await Price.aggregate(aggregationPipeline);
 
       console.log(`chartData (${interval}): `, chartData.length);
       sendSuccessResponse({
@@ -770,24 +789,26 @@ const indexController = () => {
       const pageSize = Math.max(1, Number(req.query.pageSize) || 5);
       const skip = (page - 1) * pageSize;
 
-      // Calculate time ranges once
-      const now = moment();
-      const timeRanges = {
-        rtoday: moment().startOf("day").toDate(),
-        tomorrow: moment().startOf("day").add(1, "day").toDate(),
-        oneHourAgo: now.clone().subtract(1, "hour"),
-        today: now.format("YYYY-MM-DD"),
-        sevenDaysAgo: now.clone().subtract(7, "days"),
-        start: now.clone().subtract(6, "days"),
-      };
+      // Extract category filter from query params
+      const categoryParam = req.query.categories as string | undefined;
+      let filterQuery: any = {};
 
-      // Run queries in parallel
+      if (categoryParam && categoryParam.toUpperCase() !== "ALL") {
+        const categoryFilter = categoryParam.includes(",")
+          ? categoryParam.split(",").map((c) => c.trim())
+          : categoryParam.trim();
+        filterQuery.category = Array.isArray(categoryFilter)
+          ? { $in: categoryFilter }
+          : categoryFilter;
+      }
+
+      // Run queries in parallel with filtering
       const [totalRecords, allIndexes] = await Promise.all([
-        GroupCoin.countDocuments(),
-        GroupCoin.find().skip(skip).limit(pageSize),
-        // getAllIntervals(timeRanges.start, now, 7)
+        GroupCoin.countDocuments(filterQuery),
+        GroupCoin.find(filterQuery).skip(skip).limit(pageSize),
       ]);
 
+      // Process index data
       const allIndexData = await Promise.all(
         allIndexes.map(async (index) => {
           const fundData = await getOrUpdateFund(index._id);
