@@ -810,7 +810,26 @@ const indexController = () => {
 
       // Process index data
       const allIndexData = await Promise.all(
-        allIndexes.map(async (index) => {
+        allIndexes.map(async (index: any) => {
+          const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+          // Aggregate deposits and withdrawals within the last 24 hours
+          const volume = await Record.aggregate([
+            {
+              $match: {
+                indexCoin: new mongoose.Types.ObjectId(index._id),
+                timestamp: { $gte: twentyFourHoursAgo },
+              },
+            },
+            {
+              $group: {
+                _id: "$indexCoin",
+                totalVolume: { $sum: "$amount" },
+              },
+            },
+          ]);
+
+          const totalVolume = volume.length > 0 ? volume[0].totalVolume : 0;
           const fundData = await getOrUpdateFund(index._id);
           return {
             _id: index._id,
@@ -827,6 +846,7 @@ const indexController = () => {
             totalHolder: index.holders || 0,
             price: index.price || 0,
             indexWorth: fundData?.indexWorth || 0,
+            totalVolume: totalVolume,
           };
         })
       );
@@ -907,21 +927,21 @@ const indexController = () => {
   const tvlGraph = async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
-
+  
       // Define allowed types
       type DateRangeKey = "daily" | "weekly" | "monthly";
       const allowedTypes: DateRangeKey[] = ["daily", "weekly", "monthly"];
-
+  
       if (!type || !allowedTypes.includes(type as DateRangeKey)) {
         return res.status(400).json({ error: "Invalid type parameter" });
       }
-
+  
       const dateRange: Record<DateRangeKey, number> = {
         daily: 1,
         weekly: 7,
         monthly: 31,
       };
-
+  
       // Get the date range based on type
       const dateRangeKey = type as DateRangeKey;
       const endDate = moment().endOf("day").toDate();
@@ -929,7 +949,7 @@ const indexController = () => {
         .subtract(dateRange[dateRangeKey], "days")
         .startOf("day")
         .toDate();
-
+  
       const result = await LiquidityLocked.aggregate([
         {
           $match: {
@@ -940,12 +960,14 @@ const indexController = () => {
           $project: {
             date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Format date
             liquidity: 1,
+            createdAt: 1, // Keep createdAt for sorting
           },
         },
+        { $sort: { date: -1, createdAt: -1 } }, // Sort by date and then by createdAt descending
         {
           $group: {
             _id: "$date",
-            tvl: { $sum: "$liquidity" },
+            tvl: { $last: "$liquidity" }, // Get the last liquidity value of the day
           },
         },
         {
@@ -957,7 +979,7 @@ const indexController = () => {
         },
         { $sort: { date: -1 } },
       ]);
-
+  
       sendSuccessResponse({
         res,
         data: result,
@@ -968,6 +990,7 @@ const indexController = () => {
       res.status(500).json({ message: "Internal Server Error" });
     }
   };
+  
   return {
     getAllIndex: getAllIndexV2,
     createIndex,
