@@ -678,15 +678,12 @@ export async function swapToTkn(
   const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
   let result = null;
-
   const tokenProgramId = await getTokenProgramId(
     provider.connection,
     tokenPublicKey
   );
 
-
   const quote = await getQuote(SOL, tokenPublicKey, amountInSol);
-
   const tokenAccount = (
     await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -729,6 +726,7 @@ export async function swapToTkn(
   return txHash;
   // await updateCoinAmount(groupCoinId, coinAddress, quote.outAmount);
   }catch(err){
+    console.log(err)
     return null
   }
   
@@ -1096,7 +1094,7 @@ export async function rebalanceIndex(
       } else {
         // Find the best Quote from the Jupiter API
         quote = await getQuote(tokenPublicKey, SOL, amount);
-
+        console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
         tokenAccount = getAssociatedTokenAddressSync(
           SOL,
@@ -1105,9 +1103,8 @@ export async function rebalanceIndex(
           TOKEN_PROGRAM_ID
         );
       }
-
+      console.log(tokenAccount, "tokenAccount")
       result = await getSwapIx(adminPublicKey, tokenAccount, quote);
-
       if ("error" in result) {
         console.log({ result });
         return null;

@@ -4,17 +4,32 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAccount,
   getAssociatedTokenAddressSync,
+  getAssociatedTokenAddress,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Keypair, Connection, PublicKey } from "@solana/web3.js";
 import { config } from '../config/index';
 import { decimals} from "../constants/tokenDecimals"
-import {fetchTokenSupply} from "./tokenSupply"
+import {fetchTokenSupply} from "./tokenSupply";
+import * as anchor from "@coral-xyz/anchor";
 
 const JUPITER_PRICE_API = "https://api.jup.ag/price/v2";
-const { RPC_URL } = config;
+const { RPC_URL, PROGRAM_ID } = config;
 const connection = new Connection(RPC_URL)
+
+function getProgramId() {
+  return new anchor.web3.PublicKey(
+    PROGRAM_ID as string
+  );
+}
+
+function getProgramAuthority(mintPublicKey: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("program_authority"), mintPublicKey.toBuffer()],
+    getProgramId()
+  )[0];
+}
 
 export const getSolPriceFromJupiter = async () => {
   try {
@@ -59,14 +74,17 @@ const getTokenProgramId = async (
 
 
 
-export const fetchBalance = async(tokenName: string,tokenPublicKey: string, pdaAddress: string)=>{
+export const fetchBalance = async(tokenName: string,tokenPublicKey: string, mintPublicKey: string)=>{
   try{
-
+    const connection = new Connection("https://api.mainnet-beta.solana.com", {
+      confirmTransactionInitialTimeout: 60000, // 60 seconds
+    });
+    const pda = getProgramAuthority(new PublicKey(mintPublicKey))
     const tokenProgramID = await getTokenProgramId(connection, new PublicKey(tokenPublicKey));
-    console.log(tokenProgramID,pdaAddress ,"tokenProgramId")
-    const tokenAccount = getAssociatedTokenAddressSync(
+    console.log(tokenProgramID,pda ,"tokenProgramId")
+    const tokenAccount = await  getAssociatedTokenAddress(
       new PublicKey(tokenPublicKey),
-      new PublicKey(pdaAddress),
+      pda,
       true,
       tokenProgramID
     );
@@ -100,7 +118,7 @@ export const getTokenPriceInSol = async (tokenAddress:string) => {
   }
 };
   
-export const calculateIndexPrice = async (index: IGroupCoin, pdaAddress: string) => {
+export const calculateIndexPrice = async (index: IGroupCoin) => {
     try {
       console.log("📡 Fetching Index Token Price...");
   
@@ -109,15 +127,16 @@ export const calculateIndexPrice = async (index: IGroupCoin, pdaAddress: string)
   
       let totalPrice = 0;
 
-  
+      const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
       for (const token of index.coins) {
         console.log(token.address, token.coinName, "tokenDetails")
-        const balance = await fetchBalance(token.coinName, token.address, pdaAddress)
+       
+        const balance = await fetchBalance(token.coinName, token.address, mintPublickey)
         const tokenPriceInSol = await getTokenPriceInSol(token.address);
         const tokenPriceInUsd = tokenPriceInSol;
         totalPrice += tokenPriceInUsd * balance;
       }
-      const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
+      
       const supply = await fetchTokenSupply(mintPublickey)
       const price = totalPrice/ supply;
       console.log(`📊 Final Index Token Price: $${price.toFixed(4)} USD`);

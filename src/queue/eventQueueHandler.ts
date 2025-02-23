@@ -16,15 +16,19 @@ import { getOrUpdateFund } from "../utils";
 import { IndexFund } from "../models/indexFund";
 import {sendToProgramAuthority} from "../utils/web3"
 
-const {  RPC_URL, PRIVATE_KEY, PROGRAM_ID } = config;
+const {  RPC_URL, PRIVATE_KEY, PROGRAM_ID, RPC_URL2 } = config;
 const connectionUrl: string = RPC_URL as string // Ensure RPC_URL and NETWORK are defined in your config
 const connection = new web3.Connection(connectionUrl, 'confirmed');
+const connection2 = new web3.Connection(RPC_URL2, 'confirmed')
 const decodedPrivateKey = bs58.decode(PRIVATE_KEY);
 const keypair = Keypair.fromSecretKey(decodedPrivateKey);
 const wallet = new Wallet(keypair)
 
-const provider = new AnchorProvider(connection,wallet, { commitment: "confirmed"});
-anchor.setProvider(provider);
+const provider1 = new AnchorProvider(connection,wallet, { commitment: "confirmed"});
+const provider2 = new AnchorProvider(connection2, wallet,{commitment: "confirmed"});
+let provider = provider1
+const providers = [provider1, provider2]
+// anchor.setProvider(provider);
 
 const program = new Program(IDL as Idl, provider as Provider );
 
@@ -236,6 +240,7 @@ async function handleBuyIndexQueue(
           }
           else{
             console.log(`Attempt Failed :( `)
+            // provider = providers[Math.floor(Math.random() * providers.length)];
             if(tries==MAX_RETRIES){
               console.log(`Transaction failed after MAX attempt`)
               return
@@ -393,7 +398,8 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               new: true,
             });
 
-            const recordAmount = Math.round(Number(eventData.withdrawn) * (coin.proportion /100) * tokenPrice.sol)
+            const recordAmount = Number(eventData.withdrawn) * (coin.proportion /100) * tokenPrice.sol
+            console.log(recordAmount, "record amount")
             const record = new Record({
                 // user: eventData.userAddress,
                 type: "withdrawal", // Enum for transaction type
@@ -530,29 +536,31 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
     const weights = eventData.coins.map((coin)=>{
       return new anchor.BN(coin.proportion*100)
     })
-    while(attempt < MAX_RETRIES){
-      console.log("swap to token start rebalance")
-      attempt += 1;
-      console.log(`Attempt #${attempt}`);
-      swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, weights,  provider as Provider );
-      if (swapToTknStartRebalanceTxHash !== null) {
-        console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
-        break;
-      }
-      else{
-        console.log(`Attempt Failed :( `)
-        if(attempt==MAX_RETRIES){
-          console.log(`Transaction failed after MAX attempt`)
-          return
+    console.log(weights, "weights")
+    // while(attempt < MAX_RETRIES){
+    //   console.log("swap to token start rebalance")
+    //   attempt += 1;
+    //   console.log(`Attempt #${attempt}`);
+    //   swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, weights,  provider as Provider );
+    //   if (swapToTknStartRebalanceTxHash !== null) {
+    //     console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
+    //     break;
+    //   }
+    //   else{
+    //     console.log(`Attempt Failed :( `)
+    //     if(attempt==MAX_RETRIES){
+    //       console.log(`Transaction failed after MAX attempt`)
+    //       return
             
-        }
-      } 
-    }
+    //     }
+    //   } 
+    // }
 
+    let i = 0
     for(const coin of index.coins){
       let tries = 0
       let txId = null;
-
+      const tokenAddress = new PublicKey(coin.address);
 
       // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
       // console.log(data, "pda data")
@@ -564,9 +572,25 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
         
         // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
         // console.log(data)
-        let buy = true      
-        let amount = 1
-        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, mintkeypair.publicKey, buy, amount);
+        const solPrice = await fetchSolanaUsdPrice();
+        let percent = eventData.coins[i].proportion - coin.proportion
+        console.log(percent, "percent")
+        const buy = percent>0? true: false
+        let amount;
+        if(buy){
+          amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
+          amount = Math.round(amount);
+        }else{
+          const tokenDecimals = decimals[coin.coinName]
+          percent = - percent;
+          const tokenPrice = await getTokenPrice(coin.address)
+          amount = (percent/100) * index.marketCap * Math.pow(10, tokenDecimals)/ tokenPrice.token;
+          amount = Math.round(amount);
+        }
+        
+       
+        console.log(amount, "amount-rebalance")
+        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount);
         if (txId !== null) {
           console.log(`Transaction completed successfully: ${txId}`);
           allTxHash.push(txId)
@@ -581,6 +605,7 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
           }
         } 
       }
+      i++
     }
     for (const txHash of allTxHash) {
       await confirmFinalized(txHash);
@@ -588,32 +613,32 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
 
     let tries = 0;
     let txId = null;
-    // while(tries < MAX_RETRIES){
-    //   console.log("Attempting rebalance end  ")
-    //   tries++
-    //   console.log(`Attempt #${tries}`);
+    while(tries < MAX_RETRIES){
+      console.log("Attempting rebalance end  ")
+      tries++
+      console.log(`Attempt #${tries}`);
      
-    //   txId = await rebalanceIndexEnd(program, mintkeypair);
-    //   if (txId !== null) {
-    //     console.log(`Transaction completed successfully: ${txId}`);
-    //     break;
-    //   }
-    //   else{
-    //     console.log(`Attempt Failed :( `)
-    //     if(attempt==MAX_RETRIES){
-    //       console.log(`Transaction failed after MAX attempt`)
-    //       return
+      txId = await rebalanceIndexEnd(program, mintkeypair);
+      if (txId !== null) {
+        console.log(`Transaction completed successfully: ${txId}`);
+        break;
+      }
+      else{
+        console.log(`Attempt Failed :( `)
+        if(attempt==MAX_RETRIES){
+          console.log(`Transaction failed after MAX attempt`)
+          return
             
-    //     }
-    //   } 
-    // }
+        }
+      } 
+    }
 
 
-    // const updatedGroupCoin = await GroupCoin.findByIdAndUpdate(
-    //   eventData.indexId,
-    //   { $set: { coins: eventData.coins } }, // Replace all coins
-    //   { new: true }
-    // );
+    const updatedGroupCoin = await GroupCoin.findByIdAndUpdate(
+      eventData.indexId,
+      { $set: { coins: eventData.coins } }, // Replace all coins
+      { new: true }
+    );
 
     // if (!updatedGroupCoin) {
     //   console.log("GroupCoin not found");
