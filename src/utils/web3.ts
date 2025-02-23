@@ -396,7 +396,7 @@ export const swapToSolana = async (
         //   {walletAddress: adminPublicKey, tokenMintAddress: tokenPublicKey}),
         adminTokenAccount: adminTokenAccount.address,
         pdaTokenAccount: findAssociatedTokenAddress(
-          {walletAddress: getProgramAuthority(), tokenMintAddress: tokenPublicKey}),
+          {walletAddress: getProgramAuthority(indexMint), tokenMintAddress: tokenPublicKey}),
 
         programState: programState,
         indexMint: indexMint,
@@ -404,7 +404,7 @@ export const swapToSolana = async (
         swapToSolInfo: swapToSolInfo,
         user: userPublicKey,
         priceUpdate: PYTH_NETWORK_PROGRAM_ID,
-        programAuthorityPda: getProgramAuthority(),
+        programAuthorityPda: getProgramAuthority(indexMint),
       })
       .remainingAccounts(swapInstruction.keys)
       .instruction(),
@@ -450,9 +450,9 @@ function getProgramId() {
   );
 }
 
-function getProgramAuthority() {
+function getProgramAuthority(mintPublicKey: PublicKey) {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("program_authority")],
+    [Buffer.from("program_authority"), mintPublicKey.toBuffer()],
     getProgramId()
   )[0];
 }
@@ -505,7 +505,7 @@ export const swapToToken = async (
     provider.connection,
     adminKeypair,
     tokenPublicKey,
-    getProgramAuthority(),
+    getProgramAuthority(indexMint),
     true,
     "confirmed",
     null,
@@ -546,7 +546,7 @@ export const swapToToken = async (
         indexMint: indexMint,
         indexInfo: indexInfo,
         swapToTkn: swapToTknInfo,
-        programAuthorityPda: getProgramAuthority(),
+        programAuthorityPda: getProgramAuthority(indexMint),
       })
       .remainingAccounts(swapInstruction.keys)
       .instruction(),
@@ -567,7 +567,7 @@ export const swapToToken = async (
   const transaction = new VersionedTransaction(messageV0);
   transaction.sign([adminKeypair])
   let txID = await connection.sendTransaction(transaction, {
-    skipPreflight: true,
+    skipPreflight: false,
     preflightCommitment: "confirmed",
   });
   
@@ -666,6 +666,17 @@ export const rebalanceIndexTokens = async (
     await getTokenProgramId(provider.connection, tokenPublicKey)
   );
 
+  const pdaTokenAccount = (await getOrCreateAssociatedTokenAccount(
+    provider.connection,
+    adminKeypair,
+    tokenPublicKey,
+    getProgramAuthority(indexMint),
+    true,
+    "confirmed",
+    null,
+    await getTokenProgramId(provider.connection, tokenPublicKey)
+  )).address;
+
   const instructions = [
     ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
     await program.methods
@@ -680,7 +691,7 @@ export const rebalanceIndexTokens = async (
         systemProgram: SystemProgram.programId,
         
 
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        // associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
 
         // wsolTokenAccount: findAssociatedTokenAddress(
         //   {walletAddress: adminPublicKey, tokenMintAddress: NATIVE_MINT}),
@@ -688,15 +699,14 @@ export const rebalanceIndexTokens = async (
 
         tokenMint: tokenPublicKey,
         adminTokenAccount: adminTokenAccount.address,
-        pdaTokenAccount: findAssociatedTokenAddress(
-          {walletAddress: getProgramAuthority(), tokenMintAddress: tokenPublicKey}),
+        pdaTokenAccount: pdaTokenAccount,
 
         programState: programState,
         indexMint: indexMint,
         indexInfo: indexInfo,
         rebalanceInfo: rebalanceInfo,
         priceUpdate: PYTH_NETWORK_PROGRAM_ID,
-        programAuthorityPda: getProgramAuthority(),
+        programAuthorityPda: getProgramAuthority(indexMint),
       })
       .remainingAccounts(swapInstruction.keys)
       .instruction(),

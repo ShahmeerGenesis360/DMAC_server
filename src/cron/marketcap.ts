@@ -2,12 +2,12 @@ import { IGroupCoin } from "../models/groupCoin";
 import { calculateIndexPrice } from "./indexTokenPrice"
 import  { fetchTokenSupply } from "./tokenSupply";
 
-export const calculateMarketCap = async (index: IGroupCoin, pdaAddress: string) => {
+export const calculateMarketCap = async (index: IGroupCoin) => {
   try {
     console.log("📡 Fetching Market Cap...");
     const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
     const supply = await fetchTokenSupply(mintPublickey);
-    const price = await calculateIndexPrice(index, pdaAddress);
+    const price = await calculateIndexPrice(index);
     const marketCap = supply * price;
 
     console.log(`📊 Market Cap: $${marketCap.toFixed(4)} USD`);
