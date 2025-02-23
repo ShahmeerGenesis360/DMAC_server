@@ -398,7 +398,8 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               new: true,
             });
 
-            const recordAmount = Math.round(Number(eventData.withdrawn) * (coin.proportion /100) * tokenPrice.sol)
+            const recordAmount = Number(eventData.withdrawn) * (coin.proportion /100) * tokenPrice.sol
+            console.log(recordAmount, "record amount")
             const record = new Record({
                 // user: eventData.userAddress,
                 type: "withdrawal", // Enum for transaction type
