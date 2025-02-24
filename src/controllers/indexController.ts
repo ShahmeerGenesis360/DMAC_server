@@ -269,11 +269,12 @@ const indexController = () => {
 
     try {
       const allIndexs = await GroupCoin.find(query)
+        .sort("-marketCap")
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit));
 
       const allIndexData = await Promise.all(
-        allIndexs.map(async (index) => {
+        allIndexs.map(async (index, sno) => {
           const today = new Date();
           today.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
           const tomorrow = new Date(today);
@@ -368,6 +369,7 @@ const indexController = () => {
             totalSupply: fund.totalSupply,
             indexWorth: fund.indexWorth,
             buyAmount,
+            rank: sno + (+page - 1) * +limit + 1,
           };
         })
       );
