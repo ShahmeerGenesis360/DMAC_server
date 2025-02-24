@@ -849,6 +849,7 @@ const indexController = () => {
             price: index.price || 0,
             indexWorth: fundData?.indexWorth || 0,
             totalVolume: totalVolume,
+            marketCap: index.marketCap
           };
         })
       );
