@@ -79,12 +79,35 @@ const transactionController = () => {
     }
   };
 
-  const getTransactionMonthly = async (req: Request, res: Response) => {
-    console.log("get transaction monthly");
+  const getTransactionsChart = async (req: Request, res: Response) => {
+    console.log("Fetching transactions");
 
-    // Define date range
+    const { period } = req.query; // Accepts "daily", "monthly", or "yearly"
+
+    // Define the time range dynamically
+    let dateFormat: string;
+    let start: Date;
     const end: Date = moment().utc().toDate();
-    const start: Date = moment().utc().subtract(30, "days").toDate();
+
+    switch (period) {
+      case "yearly":
+        start = moment().utc().subtract(1, "year").toDate();
+        dateFormat = "%Y-%m"; // Extract Year
+        break;
+      case "monthly":
+        start = moment().utc().subtract(30, "days").toDate();
+        dateFormat = "%Y-%m-%d"; // Extract Year-Month
+        break;
+      case "weekly":
+        start = moment().utc().subtract(7, "days").toDate();
+        dateFormat = "%Y-%m-%d"; // Extract Year-Month-Day
+        break;
+      case "daily":
+      default:
+        start = moment().utc().subtract(1, "days").toDate();
+        dateFormat = "%Y-%m-%d"; // Extract Year-Month-Day
+        break;
+    }
 
     try {
       const result = await AdminReward.aggregate([
@@ -95,7 +118,7 @@ const transactionController = () => {
         },
         {
           $project: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Extract YYYY-MM-DD
+            date: { $dateToString: { format: dateFormat, date: "$createdAt" } }, // Format date
             type: 1,
             amount: 1,
           },
@@ -109,7 +132,7 @@ const transactionController = () => {
         { $sort: { "_id.date": -1 } },
         {
           $group: {
-            _id: null, // Collect everything in one object
+            _id: null,
             buyRewards: {
               $push: {
                 $cond: [
@@ -142,18 +165,19 @@ const transactionController = () => {
       sendSuccessResponse({
         res,
         data: result.length ? result[0] : { buyRewards: [], sellRewards: [] },
-        message: "Fetched rewards successfully",
+        message: `Fetched ${period || "daily"} rewards successfully`,
       });
     } catch (err: any) {
-      console.error("Error in getTransactionMonthly:", err);
+      console.error("Error in getTransactions:", err);
       return res
         .status(500)
         .json({ error: "Server error", details: err.message });
     }
   };
+
   return {
     getTransactions,
-    getTransactionMonthly,
+    getTransactionMonthly: getTransactionsChart,
   };
 };
 
