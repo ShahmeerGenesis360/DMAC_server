@@ -790,7 +790,7 @@ const indexController = () => {
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.max(1, Number(req.query.pageSize) || 5);
       const skip = (page - 1) * pageSize;
-
+      const sortDescending = req.query.sort !== "false";
       // Extract category filter from query params
       const categoryParam = req.query.categories as string | undefined;
       let filterQuery: any = {};
@@ -807,7 +807,10 @@ const indexController = () => {
       // Run queries in parallel with filtering
       const [totalRecords, allIndexes] = await Promise.all([
         GroupCoin.countDocuments(filterQuery),
-        GroupCoin.find(filterQuery).skip(skip).limit(pageSize),
+        GroupCoin.find(filterQuery)
+          .sort({ marketCap: sortDescending ? -1 : 1 })
+          .skip(skip)
+          .limit(pageSize),
       ]);
 
       // Process index data
@@ -849,7 +852,7 @@ const indexController = () => {
             price: index.price || 0,
             indexWorth: fundData?.indexWorth || 0,
             totalVolume: totalVolume,
-            marketCap: index.marketCap
+            marketCap: index.marketCap,
           };
         })
       );
@@ -930,21 +933,21 @@ const indexController = () => {
   const tvlGraph = async (req: Request, res: Response) => {
     try {
       const { type } = req.query;
-  
+
       // Define allowed types
       type DateRangeKey = "daily" | "weekly" | "monthly";
       const allowedTypes: DateRangeKey[] = ["daily", "weekly", "monthly"];
-  
+
       if (!type || !allowedTypes.includes(type as DateRangeKey)) {
         return res.status(400).json({ error: "Invalid type parameter" });
       }
-  
+
       const dateRange: Record<DateRangeKey, number> = {
         daily: 1,
         weekly: 7,
         monthly: 31,
       };
-  
+
       // Get the date range based on type
       const dateRangeKey = type as DateRangeKey;
       const endDate = moment().endOf("day").toDate();
@@ -952,7 +955,7 @@ const indexController = () => {
         .subtract(dateRange[dateRangeKey], "days")
         .startOf("day")
         .toDate();
-  
+
       const result = await LiquidityLocked.aggregate([
         {
           $match: {
@@ -982,7 +985,7 @@ const indexController = () => {
         },
         { $sort: { date: -1 } },
       ]);
-  
+
       sendSuccessResponse({
         res,
         data: result,
@@ -993,7 +996,7 @@ const indexController = () => {
       res.status(500).json({ message: "Internal Server Error" });
     }
   };
-  
+
   return {
     getAllIndex: getAllIndexV2,
     createIndex,
