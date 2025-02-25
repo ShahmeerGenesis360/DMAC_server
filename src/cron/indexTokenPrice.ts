@@ -76,7 +76,7 @@ const getTokenProgramId = async (
 
 export const fetchBalance = async(tokenName: string,tokenPublicKey: string, mintPublicKey: string)=>{
   try{
-    const connection = new Connection("https://api.mainnet-beta.solana.com", {
+    const connection = new Connection("https://solana-mainnet.api.syndica.io/api-key/23sqEpy7QkkZTWmodYUZBb4ZBfzcXurKHfeGpKsYZeBFNzj358jPHtfeDpD29vtPtEBt1MeX24JE2HESPBsTbND75TW2g3iFoBK", {
       confirmTransactionInitialTimeout: 60000, // 60 seconds
     });
     const pda = getProgramAuthority(new PublicKey(mintPublicKey))
