@@ -107,6 +107,7 @@ const indexController = () => {
         typeof collectorDetailApi === "string"
           ? JSON.parse(collectorDetailApi)
           : collectorDetailApi;
+      const categoryList = typeof category === "string" ? JSON.parse(category) : category;
 
       // fee = parseFloat(feeAmount as string);
       console.log(coinList, "coinList");
@@ -120,7 +121,7 @@ const indexController = () => {
         mintPublickey,
         collectorDetail: processedDetails,
         feeAmount: feeAmount,
-        category,
+        category: categoryList,
         symbol,
         pda,
       });
