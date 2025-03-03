@@ -537,24 +537,24 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
       return new anchor.BN(coin.proportion*100)
     })
     console.log(weights, "weights")
-    // while(attempt < MAX_RETRIES){
-    //   console.log("swap to token start rebalance")
-    //   attempt += 1;
-    //   console.log(`Attempt #${attempt}`);
-    //   swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, weights,  provider as Provider );
-    //   if (swapToTknStartRebalanceTxHash !== null) {
-    //     console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
-    //     break;
-    //   }
-    //   else{
-    //     console.log(`Attempt Failed :( `)
-    //     if(attempt==MAX_RETRIES){
-    //       console.log(`Transaction failed after MAX attempt`)
-    //       return
+    while(attempt < MAX_RETRIES){
+      console.log("swap to token start rebalance")
+      attempt += 1;
+      console.log(`Attempt #${attempt}`);
+      swapToTknStartRebalanceTxHash  = await rebalanceIndexStart(program, mintkeypair, weights,  provider as Provider );
+      if (swapToTknStartRebalanceTxHash !== null) {
+        console.log(`Transaction completed successfully: ${swapToTknStartRebalanceTxHash}`);
+        break;
+      }
+      else{
+        console.log(`Attempt Failed :( `)
+        if(attempt==MAX_RETRIES){
+          console.log(`Transaction failed after MAX attempt`)
+          return
             
-    //     }
-    //   } 
-    // }
+        }
+      } 
+    }
 
     let i = 0
     for(const coin of index.coins){
@@ -577,6 +577,9 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
         console.log(percent, "percent")
         const buy = percent>0? true: false
         let amount;
+        if(percent == 0){
+          continue;
+        }
         if(buy){
           amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
           amount = Math.round(amount);

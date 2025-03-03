@@ -104,4 +104,3 @@ export {
   eventQueue,
   addEventToQueue,
 };
-// Process the job in the queue

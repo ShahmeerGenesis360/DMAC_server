@@ -474,7 +474,7 @@ export const swapToToken = async (
 
   let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
   const programAuthority = findProgramAuthority(program.programId);
-  // console.log(programAuthority, "--------------------------");
+  console.log(programAuthority, "--------------------------");
   const programWSOLAccount = findProgramWSOLAccount(program.programId);
   const adminPublicKey = adminKeypair.publicKey;
   const connection = provider.connection;
@@ -705,7 +705,7 @@ export const rebalanceIndexTokens = async (
         indexMint: indexMint,
         indexInfo: indexInfo,
         rebalanceInfo: rebalanceInfo,
-        priceUpdate: PYTH_NETWORK_PROGRAM_ID,
+        // priceUpdate: PYTH_NETWORK_PROGRAM_ID,
         programAuthorityPda: getProgramAuthority(indexMint),
       })
       .remainingAccounts(swapInstruction.keys)

@@ -1028,7 +1028,7 @@ export async function rebalanceIndexStart(
 ) {
   try{
     const mintPublicKey = mintKeypair.publicKey;
-
+    console.log(getRebalanceIndexInfoPda(mintPublicKey), "rebalance index pda address" )
     const accounts = {
       programState: programState,
       admin: adminPublicKey,
