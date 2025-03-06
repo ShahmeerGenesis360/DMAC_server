@@ -21,12 +21,16 @@ const { redisHost, redisPort , redisPassword, redisDb } = config;
 const redisConfig =  {
         host: redisHost,
         port: redisPort,
-        // password: redisPassword,
+        password: redisPassword,
         // db: redisDb,
 };
 
 const eventQueue = new Bull<JobData>('eventQueue', {
   redis: redisConfig
+});
+
+eventQueue.on("ready", () => {
+  console.log("✅ Bull queue is connected to Redis!");
 });
 
 eventQueue.process(async (job: Job<JobData>) => {
