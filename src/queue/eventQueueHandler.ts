@@ -1,6 +1,6 @@
 import {config} from "../config/index"
 import { GroupCoin } from "../models/groupCoin";
-import {swapToTknStart, swapToTkn, swapToTknEnd, swapToSol, swapToSolEnd, rebalanceIndexStart, rebalanceIndex, rebalanceIndexEnd, fetchIndexInfo, createWsol} from "../utils/apiRequest"
+import {swapToTknStart, swapToTkn, swapToTknEnd, swapToSol, swapToSolEnd, rebalanceIndexStart, rebalanceIndex, rebalanceIndexEnd, fetchIndexInfo, createWsol, initialize} from "../utils/apiRequest"
 import {VersionedTransaction, Keypair, PublicKey, LAMPORTS_PER_SOL, TransactionInstruction,Connection} from '@solana/web3.js'
 import { web3,  } from '@project-serum/anchor';
 import * as anchor from '@project-serum/anchor';
@@ -47,6 +47,19 @@ const decimals: Record<string, number>  = {
   Griffain: 6,
   AIXBT: 8,
   SWARMS: 6,
+}
+
+function getProgramAuthority(mintPublicKey: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("program_authority"), mintPublicKey.toBuffer()],
+    getProgramId()
+  )[0];
+}
+
+function getProgramId() {
+  return new anchor.web3.PublicKey(
+    process.env.PROGRAM_ID as string
+  );
 }
 
 async function getTransactionReceipt(signature:string) {
@@ -536,6 +549,10 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
     const weights = eventData.coins.map((coin)=>{
       return new anchor.BN(coin.proportion*100)
     })
+    const programAuthority = getProgramAuthority(mintkeypair.publicKey)
+    console.log(programAuthority, "progAth")
+    const initbalance  = await connection.getBalance(programAuthority)
+    console.log(initbalance, "init balance")
     console.log(weights, "weights")
     while(attempt < MAX_RETRIES){
       console.log("swap to token start rebalance")
@@ -557,6 +574,7 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
     }
 
     let i = 0
+    let totalBuy = 0
     for(const coin of index.coins){
       let tries = 0
       let txId = null;
@@ -578,24 +596,27 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
         const buy = percent>0? true: false
         let amount;
         if(percent == 0){
-          continue;
+         
+          break;
         }
         if(buy){
-          amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
-          amount = Math.round(amount);
+          console.log("skipping buy")
+          break
         }else{
           const tokenDecimals = decimals[coin.coinName]
           percent = - percent;
+          
           const tokenPrice = await getTokenPrice(coin.address)
           amount = (percent/100) * index.marketCap * Math.pow(10, tokenDecimals)/ tokenPrice.token;
           amount = Math.round(amount);
         }
         
-       
+        
         console.log(amount, "amount-rebalance")
         txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount);
         if (txId !== null) {
           console.log(`Transaction completed successfully: ${txId}`);
+          totalBuy+=percent
           allTxHash.push(txId)
           break;
         }
@@ -610,6 +631,65 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
       }
       i++
     }
+
+    i = 0;
+    for(const coin of index.coins){
+      let tries = 0
+      let txId = null;
+      const tokenAddress = new PublicKey(coin.address);
+
+      while(tries < MAX_RETRIES){
+        console.log("Attempting rebalance swap token ", coin.coinName)
+        tries++
+        console.log(`Attempt #${tries}`);; 
+        
+        // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
+        // console.log(data)
+        const solPrice = await fetchSolanaUsdPrice();
+        console.log(eventData.coins[i])
+        let percent = eventData.coins[i].proportion - coin.proportion
+        console.log(percent, "percent")
+        const buy = percent>0? true: false
+        let amount;
+        if(percent == 0){
+          break;
+        }
+        if(buy){
+          const curBalance  = await connection.getBalance(programAuthority)
+          console.log(curBalance, "curbalance")
+          let balance = curBalance-initbalance;
+    
+          amount = balance * (percent/totalBuy)
+          console.log(percent/totalBuy, "percent/total")
+          // amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
+          // amount = Math.round(amount);
+        }else{
+          console.log("skipping sell")
+          break;
+        }
+        
+        
+        console.log(amount, "amount-rebalance")
+        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount);
+        if (txId !== null) {
+          console.log(`Transaction completed successfully: ${txId}`);
+          totalBuy -= percent
+          allTxHash.push(txId)
+          break;
+        }
+        else{
+          console.log(`Attempt Failed :( `)
+          if(attempt==MAX_RETRIES){
+            console.log(`Transaction failed after MAX attempt`)
+            return
+              
+          }
+        } 
+      }
+      i++
+    }
+
+
     for (const txHash of allTxHash) {
       await confirmFinalized(txHash);
     }

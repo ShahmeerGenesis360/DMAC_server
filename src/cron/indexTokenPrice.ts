@@ -15,8 +15,8 @@ import {fetchTokenSupply} from "./tokenSupply";
 import * as anchor from "@coral-xyz/anchor";
 
 const JUPITER_PRICE_API = "https://api.jup.ag/price/v2";
-const { RPC_URL, PROGRAM_ID } = config;
-const connection = new Connection(RPC_URL)
+const { RPC_URL2, PROGRAM_ID } = config;
+const connection = new Connection(RPC_URL2)
 
 function getProgramId() {
   return new anchor.web3.PublicKey(
@@ -76,7 +76,7 @@ const getTokenProgramId = async (
 
 export const fetchBalance = async(tokenName: string,tokenPublicKey: string, mintPublicKey: string)=>{
   try{
-    const connection = new Connection("https://solana-mainnet.api.syndica.io/api-key/23sqEpy7QkkZTWmodYUZBb4ZBfzcXurKHfeGpKsYZeBFNzj358jPHtfeDpD29vtPtEBt1MeX24JE2HESPBsTbND75TW2g3iFoBK", {
+    const connection = new Connection(RPC_URL2, {
       confirmTransactionInitialTimeout: 60000,
     });
     const pda = getProgramAuthority(new PublicKey(mintPublicKey))
