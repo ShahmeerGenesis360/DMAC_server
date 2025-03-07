@@ -21,7 +21,8 @@ import {
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
 
-import fetch from "node-fetch";
+// import fetch from "node-fetch";
+
 import { schema, SharedAccountsRouteArgs } from "./schema";
 import { config, PROGRAM_ID } from "../config";
 import { getTokenProgramId } from "./apiRequest";
@@ -169,6 +170,7 @@ export const getQuote = async (
   toMint: PublicKey,
   amount: number
 ) => {
+  const fetch = (await import("node-fetch")).default;
   return fetch(
     `${API_ENDPOINT}/quote?outputMint=${toMint.toBase58()}&inputMint=${fromMint.toBase58()}&amount=${amount}&slippage=1&onlyDirectRoutes=true`
   ).then((response) => response.json());
@@ -191,6 +193,7 @@ export const getSwapIx = async (
       },
     },
   };
+  const fetch = (await import("node-fetch")).default;
   return fetch(`${API_ENDPOINT}/swap-instructions`, {
     method: "POST",
     headers: {
