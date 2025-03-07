@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import logger from "../utils/logger";
 import { User } from "../models/user";
 import { createToken } from "../utils";
+import { TopHolder } from "../models/topHolder";
 interface CustomRequest extends Request {
   user?: any;
 }
@@ -315,12 +316,54 @@ const userController = () => {
     }
   };
 
+  const getAllTokenTopHolders = async (req: Request, res: Response) => {
+    logger.info(`userController get all topHolders`);
+    try {
+      const { page = 1, limit = 10, search } = req.query;
+      const query: any = {};
+
+      if (search) {
+        query.$or = [
+          { owner: { $regex: search, $options: "i" } },
+          { username: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const holders = await TopHolder.find(query)
+        .sort({ balance: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+
+      const totalHolders = await TopHolder.countDocuments(query);
+
+      sendSuccessResponse({
+        res,
+        data: {
+          holders,
+          totalHolders,
+          totalPages: Math.ceil(totalHolders / Number(limit)),
+          currentPage: Number(page),
+        },
+        message: "Holders fetched successfully",
+      });
+    } catch (error) {
+      logger.error(`Error while fetching all holders ==> `, error.message);
+      sendErrorResponse({
+        req,
+        res,
+        error: error.message,
+        statusCode: 500,
+      });
+    }
+  };
+
   return {
     getOrCreateUser,
     updateUser,
     getUserbyToken,
     getAllUsers,
     getUserStats,
+    getAllTokenTopHolders,
   };
 };
 

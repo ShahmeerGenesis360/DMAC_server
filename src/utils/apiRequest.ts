@@ -1083,7 +1083,7 @@ export async function rebalanceIndex(
       if(buy) {
         // Find the best Quote from the Jupiter API
         quote = await getQuote(SOL, tokenPublicKey, amount);
-
+        console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
         tokenAccount = getAssociatedTokenAddressSync(
           tokenPublicKey,

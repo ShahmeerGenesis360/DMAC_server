@@ -2,10 +2,11 @@ import { config } from '../config/index';
 const { HELIUS_API_KEY } = config;
 const url = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
-export const getTokenHolders = async (mintPubKey: string):Promise<number> => {
+export const getTokenHolders = async (mintPubKey: string):Promise<{ holders: number, topHolders: { owner: string, balance: number }[] }> => {
   const fetch = (await import("node-fetch")).default;
   let page = 1;
   let allOwners = new Set();
+  let holderBalances: { owner: string, balance: number }[] = [];
 
   while (true) {
     const response: any = await fetch(url, {
@@ -32,12 +33,20 @@ export const getTokenHolders = async (mintPubKey: string):Promise<number> => {
       break;
     }
     console.log(`Processing results from page ${page}`);
-    data.result.token_accounts.forEach((account: any) =>
-      allOwners.add(account.owner)
-    );
+    data.result.token_accounts.forEach((account: any) => {
+      allOwners.add(account.owner); // Add unique owner
+      const balance = parseFloat(account.amount) || 0;
+      holderBalances.push({ owner: account.owner, balance });
+    });
     page++;
   }
+  const topHolders = holderBalances.sort((a, b) => b.balance - a.balance).slice(0, 10);
 
-  console.log(allOwners.size)
-  return allOwners.size;
+  console.log(`Total unique owners: ${allOwners.size}`);
+  console.log(`Top 10 holders:`, topHolders);
+
+  return {
+    holders: allOwners.size,
+    topHolders: topHolders,
+  };
 };
