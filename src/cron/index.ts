@@ -9,6 +9,7 @@ import { calculateIndexPrice } from "./indexTokenPrice";
 import {getTokenHolders} from "./holders";
 import {calculateMarketCap} from "./marketcap";
 import {Price} from '../models/price'
+import { TopHolder } from '../models/topHolder';
 
 const SMOOTHING_FACTOR = 0.1;
 
@@ -78,7 +79,7 @@ async function updateCoins(): Promise<void>{
       console.log(index.name)
       const mintPublickey = index.mintPublickey.slice(1, index.mintPublickey.length - 1);
       const supply = await fetchTokenSupply(mintPublickey);
-      const holders = await getTokenHolders(mintPublickey);
+      const { holders, topHolders } = await getTokenHolders(mintPublickey);
       // const pdaAddress = index.pda.slice(1, index.mintPublickey.length - 1);
       const price = await calculateIndexPrice(index);
       const marketCap = await calculateMarketCap(index);
@@ -92,16 +93,28 @@ async function updateCoins(): Promise<void>{
         {
           upsert: true,
           new: true,
-        })
+      })
       await Price.create({
           price: price,
           time: Date.now(), // Current time in seconds
           indexId: index._id,
       });
+
+      await TopHolder.deleteMany({ mintAddress: mintPublickey });
+      await TopHolder.insertMany(
+        topHolders.map((holder) => ({
+          mintAddress: mintPublickey,
+          owner: holder.owner,
+          balance: holder.balance,
+          indexName: index.name,
+          updatedAt: new Date(),
+        }))
+      );
     }
+
       
   }catch(err){
-    console.error("Error updating GroupCoinHistory:", err);
+    console.error("Error updating token details:", err);
   }
 }
 

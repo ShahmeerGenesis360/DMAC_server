@@ -1080,10 +1080,11 @@ export async function rebalanceIndex(
 
       let quote = null;
       let tokenAccount = null;
+      let programWSOLAccount = null
       if(buy) {
         // Find the best Quote from the Jupiter API
         quote = await getQuote(SOL, tokenPublicKey, amount);
-
+        console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
         tokenAccount = getAssociatedTokenAddressSync(
           tokenPublicKey,
@@ -1091,20 +1092,24 @@ export async function rebalanceIndex(
           false,
           TOKEN_PROGRAM_ID
         );
+        result = await getSwapIx(adminPublicKey, tokenAccount, quote);
       } else {
         // Find the best Quote from the Jupiter API
         quote = await getQuote(tokenPublicKey, SOL, amount);
         console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
-        tokenAccount = getAssociatedTokenAddressSync(
-          SOL,
-          adminPublicKey,
-          false,
-          TOKEN_PROGRAM_ID
-        );
+        // tokenAccount = getAssociatedTokenAddressSync(
+        //   SOL,
+        //   adminPublicKey,
+        //   false,
+        //   TOKEN_PROGRAM_ID
+        // );
+        programWSOLAccount = findProgramWSOLAccount(program.programId);
+        result = await getSwapIx(adminPublicKey, programWSOLAccount, quote);
       }
       console.log(tokenAccount, "tokenAccount")
-      result = await getSwapIx(adminPublicKey, tokenAccount, quote);
+      console.log(programWSOLAccount, "programWSOLAccount")
+     
       if ("error" in result) {
         console.log({ result });
         return null;

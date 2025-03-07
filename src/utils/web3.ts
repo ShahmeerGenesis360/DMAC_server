@@ -676,7 +676,7 @@ export const rebalanceIndexTokens = async (
     null,
     await getTokenProgramId(provider.connection, tokenPublicKey)
   )).address;
-
+  console.log(getProgramAuthority(indexMint), indexMint, "rebalance programAuthority");
   const instructions = [
     ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
     await program.methods
@@ -732,7 +732,7 @@ const transaction = new VersionedTransaction(messageV0);
     transaction.sign([adminKeypair])
     const txID = await provider.sendAndConfirm(transaction, [adminKeypair]);
   
-    const confirmation = await provider.connection.confirmTransaction(txID,"confirmed")
+    const confirmation = await provider.connection.confirmTransaction(txID,"finalized")
     if (confirmation.value.err) {
       console.error(`Transaction failed: ${JSON.stringify(transaction)}`);
       return null

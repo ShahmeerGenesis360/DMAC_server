@@ -9,5 +9,6 @@ userRouter.patch("/", decodeTokenFromRequest, user.updateUser);
 userRouter.get("/", decodeTokenFromRequest, user.getUserbyToken);
 userRouter.get("/all", decodeTokenFromAdminRequest, user.getAllUsers);
 userRouter.get('/user-stats', decodeTokenFromAdminRequest, user.getUserStats);
+userRouter.get("/holders", decodeTokenFromAdminRequest, user.getAllTokenTopHolders);
 
 export default userRouter;
