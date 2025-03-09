@@ -662,7 +662,7 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
           amount = balance * (percent/totalBuy)
           console.log(percent/totalBuy, "percent/total")
           // amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
-          // amount = Math.round(amount);
+          amount = Math.round(amount);
         }else{
           console.log("skipping sell")
           break;
