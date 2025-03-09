@@ -961,17 +961,12 @@ const indexController = () => {
           },
         },
         {
-          $project: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Format date
-            liquidity: 1,
-            createdAt: 1, // Keep createdAt for sorting
-          },
+          $sort: { createdAt: -1 },
         },
-        { $sort: { date: -1, createdAt: -1 } }, // Sort by date and then by createdAt descending
         {
           $group: {
-            _id: "$date",
-            tvl: { $last: "$liquidity" }, // Get the last liquidity value of the day
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            tvl: { $first: "$liquidity" }, // Get the first liquidity value after sorting descending
           },
         },
         {
