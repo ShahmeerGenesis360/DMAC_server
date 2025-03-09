@@ -26,6 +26,7 @@ import {
 import { schema, SharedAccountsRouteArgs } from "./schema";
 import { config, PROGRAM_ID } from "../config";
 import { getTokenProgramId } from "./apiRequest";
+import axios from "axios";
 const { RPC_URL, RPC_URL2 } = config;
 
 const rpcUrls = [
@@ -170,10 +171,17 @@ export const getQuote = async (
   toMint: PublicKey,
   amount: number
 ) => {
-  const fetch = (await import("node-fetch")).default;
-  return fetch(
-    `${API_ENDPOINT}/quote?outputMint=${toMint.toBase58()}&inputMint=${fromMint.toBase58()}&amount=${amount}&slippage=1&onlyDirectRoutes=true`
-  ).then((response) => response.json());
+  return axios
+  .get(`${API_ENDPOINT}/quote`, {
+    params: {
+      outputMint: toMint.toBase58(),
+      inputMint: fromMint.toBase58(),
+      amount: amount,
+      slippage: 1,
+      onlyDirectRoutes: true,
+    },
+  })
+  .then((response) => response.data);
 };
 
 export const getSwapIx = async (
@@ -193,15 +201,14 @@ export const getSwapIx = async (
       },
     },
   };
-  const fetch = (await import("node-fetch")).default;
-  return fetch(`${API_ENDPOINT}/swap-instructions`, {
-    method: "POST",
+  return axios
+  .post(`${API_ENDPOINT}/swap-instructions`, data, {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(data),
-  }).then((response) => response.json());
+  })
+  .then((response) => response.data);
 };
 
 // export const swapToSolana = async (
