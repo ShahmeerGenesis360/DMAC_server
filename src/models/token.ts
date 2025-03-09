@@ -4,7 +4,7 @@ const { Schema, model } = mongoose;
 
 const tokenSchema = new Schema(
   {
-    label: { type: String, required: true, unique: true },
+    label: { type: String, required: true },
     value: { type: String, required: true },
     icon: { type: String, required: true },
     proportion: { type: Number, default: 0 },
