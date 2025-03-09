@@ -136,9 +136,10 @@ export const calculateIndexPrice = async (index: IGroupCoin) => {
         const tokenPriceInUsd = tokenPriceInSol;
         totalPrice += tokenPriceInUsd * balance;
       }
-      
-      const supply = await fetchTokenSupply(mintPublickey)
-      const price = totalPrice/ supply;
+     
+      let supply = await fetchTokenSupply(mintPublickey)
+
+      const price = supply > 0 ? totalPrice / supply : 1;
       console.log(`📊 Final Index Token Price: $${price.toFixed(4)} USD`);
       return price;
     } catch (error) {
