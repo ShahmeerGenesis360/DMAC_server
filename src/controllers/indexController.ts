@@ -641,7 +641,6 @@ const indexController = () => {
     try {
       const {
         name,
-        coins,
         description,
         faq,
         imageUrl,
@@ -651,7 +650,6 @@ const indexController = () => {
       } = req.body;
 
       // Parse coins and FAQ
-      const coinList = coins ? coins : [];
       const faqList = faq ? faq : [];
       const collectorDetailsList = collectorDetails ? collectorDetails : [];
 
@@ -675,8 +673,7 @@ const indexController = () => {
       existingGroupCoin.name = name || existingGroupCoin.name;
       existingGroupCoin.category = category || existingGroupCoin.category;
       existingGroupCoin.symbol = symbol || existingGroupCoin.symbol;
-      existingGroupCoin.coins =
-        coinList.length > 0 ? coinList : existingGroupCoin.coins;
+      existingGroupCoin.coins = existingGroupCoin.coins;
       existingGroupCoin.imageUrl = updatedImageUrl;
       existingGroupCoin.description =
         description || existingGroupCoin.description;
@@ -964,17 +961,12 @@ const indexController = () => {
           },
         },
         {
-          $project: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, // Format date
-            liquidity: 1,
-            createdAt: 1, // Keep createdAt for sorting
-          },
+          $sort: { createdAt: -1 },
         },
-        { $sort: { date: -1, createdAt: -1 } }, // Sort by date and then by createdAt descending
         {
           $group: {
-            _id: "$date",
-            tvl: { $last: "$liquidity" }, // Get the last liquidity value of the day
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            tvl: { $first: "$liquidity" }, // Get the first liquidity value after sorting descending
           },
         },
         {

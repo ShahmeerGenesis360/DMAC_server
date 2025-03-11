@@ -7,6 +7,7 @@ import reactionRouter from "./reactionRoute";
 import adminRouter from "./adminRoute";
 import transactionRouter from "./transactionRoute";
 import categoryRouter from "./categoryRoutes";
+import tokenRouter from "./tokenRoute";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/reaction", reactionRouter);
 router.use("/auth", adminRouter);
 router.use("/transaction", transactionRouter);
 router.use("/category", categoryRouter);
+router.use("/token", tokenRouter);
 
 export default router;
