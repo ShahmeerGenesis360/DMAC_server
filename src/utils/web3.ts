@@ -401,6 +401,7 @@ export const swapToSolana = async (
         systemProgram: SystemProgram.programId,
 
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        nativeTokenProgram: TOKEN_PROGRAM_ID,
         tokenMint: tokenPublicKey,
         // adminTokenAccount: findAssociatedTokenAddress(
         //   {walletAddress: adminPublicKey, tokenMintAddress: tokenPublicKey}),
@@ -535,7 +536,7 @@ export const swapToToken = async (
         jupiterProgram: jupiterProgramId,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-
+        nativeTokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
 
         wsolTokenAccount: wsolTokenAccount,
@@ -699,7 +700,7 @@ export const rebalanceIndexTokens = async (
         jupiterProgram: jupiterProgramId,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        
+        nativeTokenProgram: TOKEN_PROGRAM_ID,
 
         // associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
 

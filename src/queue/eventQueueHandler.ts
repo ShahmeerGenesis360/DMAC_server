@@ -47,6 +47,8 @@ const decimals: Record<string, number>  = {
   Griffain: 6,
   AIXBT: 8,
   SWARMS: 6,
+  ELIZA: 6,
+  ARC: 6,
 }
 
 function getProgramAuthority(mintPublicKey: PublicKey) {
@@ -190,8 +192,9 @@ async function handleBuyIndexQueue(
           }
         } 
       }
-
-
+      console.log(index.pda, "pda")
+      const pda = index.pda.slice(1, index.pda.length - 1);
+      console.log(pda, "pda1")
 
       // let createwsolTxId = null;
       // let entries = 0;
@@ -354,7 +357,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
         console.log(mintKeySecret)
         const secretKeyUint8Array = new Uint8Array(Buffer.from(mintKeySecret, "base64"))
         const mintkeypair = Keypair.fromSecretKey(secretKeyUint8Array);
-        
+        const pda = index.pda.slice(1, index.pda.length - 1);
         for(const coin of index.coins){
             let tokenDecimals;
             let tokenPrice;
@@ -375,7 +378,7 @@ async function handleSellIndexQueue(eventData: DmacSellIndexEvent): Promise<void
               console.log( Number(eventData.adminFee), "usdc value")
               amount = Math.round(amount);
               console.log(amount, tokenAddress, "tokenAddress");
-              txId = await swapToSol(program, provider as Provider, mintkeypair, userPubKey, tokenAddress, amount);
+              txId = await swapToSol(program, provider as Provider, mintkeypair, userPubKey, tokenAddress, amount, pda);
               if(txId!=null){
                 console.log(`Transaction completed successfully: ${txId}`);
                 allTxHash.push(txId)
@@ -549,6 +552,7 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
     const weights = eventData.coins.map((coin)=>{
       return new anchor.BN(coin.proportion*100)
     })
+    console.log(weights)
     const programAuthority = getProgramAuthority(mintkeypair.publicKey)
     console.log(programAuthority, "progAth")
     const initbalance  = await connection.getBalance(programAuthority)
@@ -573,126 +577,127 @@ async function handleRebalanceIndex(eventData: RebalanceEvent):  Promise<void> {
       } 
     }
 
-    let i = 0
-    let totalBuy = 0
-    for(const coin of index.coins){
-      let tries = 0
-      let txId = null;
-      const tokenAddress = new PublicKey(coin.address);
+    // let i = 0
+    // let totalBuy = 0
+    // const pda = index.pda.slice(1, index.pda.length - 1);
+    // for(const coin of index.coins){
+    //   let tries = 0
+    //   let txId = null;
+    //   const tokenAddress = new PublicKey(coin.address);
 
-      // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
-      // console.log(data, "pda data")
+    //   // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, new PublicKey(PROGRAM_ID))
+    //   // console.log(data, "pda data")
 
-      while(tries < MAX_RETRIES){
-        console.log("Attempting rebalance swap token ", coin.coinName)
-        tries++
-        console.log(`Attempt #${tries}`);; 
+    //   while(tries < MAX_RETRIES){
+    //     console.log("Attempting rebalance swap token ", coin.coinName)
+    //     tries++
+    //     console.log(`Attempt #${tries}`);; 
         
-        // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
-        // console.log(data)
-        const solPrice = await fetchSolanaUsdPrice();
-        let percent = eventData.coins[i].proportion - coin.proportion
-        console.log(percent, "percent")
-        const buy = percent>0? true: false
-        let amount;
-        if(percent == 0){
+    //     // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
+    //     // console.log(data)
+    //     const solPrice = await fetchSolanaUsdPrice();
+    //     let percent = eventData.coins[i].proportion - coin.proportion
+    //     console.log(percent, "percent")
+    //     const buy = percent>0? true: false
+    //     let amount;
+    //     if(percent == 0){
          
-          break;
-        }
-        if(buy){
-          console.log("skipping buy")
-          break
-        }else{
-          const tokenDecimals = decimals[coin.coinName]
-          percent = - percent;
+    //       break;
+    //     }
+    //     if(buy){
+    //       console.log("skipping buy")
+    //       break
+    //     }else{
+    //       const tokenDecimals = decimals[coin.coinName]
+    //       percent = - percent;
           
-          const tokenPrice = await getTokenPrice(coin.address)
-          amount = (percent/100) * index.marketCap * Math.pow(10, tokenDecimals)/ tokenPrice.token;
-          amount = Math.round(amount);
-        }
+    //       const tokenPrice = await getTokenPrice(coin.address)
+    //       amount = (percent/100) * index.marketCap * Math.pow(10, tokenDecimals)/ tokenPrice.token;
+    //       amount = Math.round(amount);
+    //     }
         
         
-        console.log(amount, "amount-rebalance")
-        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount);
-        if (txId !== null) {
-          console.log(`Transaction completed successfully: ${txId}`);
-          totalBuy+=percent
-          allTxHash.push(txId)
-          break;
-        }
-        else{
-          console.log(`Attempt Failed :( `)
-          if(attempt==MAX_RETRIES){
-            console.log(`Transaction failed after MAX attempt`)
-            return
+    //     console.log(amount, "amount-rebalance")
+    //     txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount, pda);
+    //     if (txId !== null) {
+    //       console.log(`Transaction completed successfully: ${txId}`);
+    //       totalBuy+=percent
+    //       allTxHash.push(txId)
+    //       break;
+    //     }
+    //     else{
+    //       console.log(`Attempt Failed :( `)
+    //       if(attempt==MAX_RETRIES){
+    //         console.log(`Transaction failed after MAX attempt`)
+    //         return
               
-          }
-        } 
-      }
-      i++
-    }
+    //       }
+    //     } 
+    //   }
+    //   i++
+    // }
 
-    i = 0;
-    for(const coin of index.coins){
-      let tries = 0
-      let txId = null;
-      const tokenAddress = new PublicKey(coin.address);
+    // i = 0;
+    // for(const coin of index.coins){
+    //   let tries = 0
+    //   let txId = null;
+    //   const tokenAddress = new PublicKey(coin.address);
 
-      while(tries < MAX_RETRIES){
-        console.log("Attempting rebalance swap token ", coin.coinName)
-        tries++
-        console.log(`Attempt #${tries}`);; 
+    //   while(tries < MAX_RETRIES){
+    //     console.log("Attempting rebalance swap token ", coin.coinName)
+    //     tries++
+    //     console.log(`Attempt #${tries}`);; 
         
-        // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
-        // console.log(data)
-        const solPrice = await fetchSolanaUsdPrice();
-        console.log(eventData.coins[i])
-        let percent = eventData.coins[i].proportion - coin.proportion
-        console.log(percent, "percent")
-        const buy = percent>0? true: false
-        let amount;
-        if(percent == 0){
-          break;
-        }
-        if(buy){
-          const curBalance  = await connection.getBalance(programAuthority)
-          console.log(curBalance, "curbalance")
-          let balance = curBalance-initbalance;
+    //     // const data = await fetchIndexInfo(connection, mintkeypair.publicKey, PROGRAM_ID)
+    //     // console.log(data)
+    //     const solPrice = await fetchSolanaUsdPrice();
+    //     console.log(eventData.coins[i])
+    //     let percent = eventData.coins[i].proportion - coin.proportion
+    //     console.log(percent, "percent")
+    //     const buy = percent>0? true: false
+    //     let amount;
+    //     if(percent == 0){
+    //       break;
+    //     }
+    //     if(buy){
+    //       const curBalance  = await connection.getBalance(programAuthority)
+    //       console.log(curBalance, "curbalance")
+    //       let balance = curBalance-initbalance;
     
-          amount = balance * (percent/totalBuy)
-          console.log(percent/totalBuy, "percent/total")
-          // amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
-          amount = Math.round(amount);
-        }else{
-          console.log("skipping sell")
-          break;
-        }
+    //       amount = balance * (percent/totalBuy)
+    //       console.log(percent/totalBuy, "percent/total")
+    //       // amount = (percent/100) * index.marketCap * LAMPORTS_PER_SOL/solPrice;
+    //       amount = Math.round(amount);
+    //     }else{
+    //       console.log("skipping sell")
+    //       break;
+    //     }
         
         
-        console.log(amount, "amount-rebalance")
-        txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount);
-        if (txId !== null) {
-          console.log(`Transaction completed successfully: ${txId}`);
-          totalBuy -= percent
-          allTxHash.push(txId)
-          break;
-        }
-        else{
-          console.log(`Attempt Failed :( `)
-          if(attempt==MAX_RETRIES){
-            console.log(`Transaction failed after MAX attempt`)
-            return
+    //     console.log(amount, "amount-rebalance")
+    //     txId = await rebalanceIndex(program, provider as Provider, mintkeypair, tokenAddress, buy, amount, pda);
+    //     if (txId !== null) {
+    //       console.log(`Transaction completed successfully: ${txId}`);
+    //       totalBuy -= percent
+    //       allTxHash.push(txId)
+    //       break;
+    //     }
+    //     else{
+    //       console.log(`Attempt Failed :( `)
+    //       if(attempt==MAX_RETRIES){
+    //         console.log(`Transaction failed after MAX attempt`)
+    //         return
               
-          }
-        } 
-      }
-      i++
-    }
+    //       }
+    //     } 
+    //   }
+    //   i++
+    // }
 
 
-    for (const txHash of allTxHash) {
-      await confirmFinalized(txHash);
-    }
+    // for (const txHash of allTxHash) {
+    //   await confirmFinalized(txHash);
+    // }
 
     let tries = 0;
     let txId = null;

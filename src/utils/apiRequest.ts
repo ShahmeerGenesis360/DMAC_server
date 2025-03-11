@@ -24,6 +24,7 @@ import {
   createAssociatedTokenAccount,
   getAssociatedTokenAddressSync,
   createSyncNativeInstruction,
+  getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
 import {getRandomeTipAccountAddress} from '../utils/jito'
@@ -46,6 +47,8 @@ import {
 } from "./web3";
 import * as borsh from "@coral-xyz/borsh";
 import { Provider } from "@project-serum/anchor";
+import { config, PROGRAM_ID } from "../config";
+const { RPC_URL } = config;
 // import { collect } from "./test";
 
 // import {
@@ -825,17 +828,35 @@ export async function swapToSol(
   mintKeypair: Keypair,
   userPublicKey: PublicKey,
   tokenPublicKey: PublicKey,
-  amountInToken: number
+  amountInToken: number,
+  pda: string,
 ) {
   try{
     const mintPublicKey = mintKeypair.publicKey;
-
+    const connection = new Connection(RPC_URL, "confirmed")
     const SOL = new PublicKey("So11111111111111111111111111111111111111112");
+    const tknPda = await getTokenProgramId(
+      connection,
+      tokenPublicKey
+    )
+    console.log(tokenPublicKey, pda,"pda")
+    const sourceATA = await getAssociatedTokenAddress(
+      tokenPublicKey,
+      new PublicKey(pda),
+      true,
+      tknPda
+    )
+    const sourceBalanceInfo = await connection.getTokenAccountBalance(sourceATA)
+    console.log(Number(sourceBalanceInfo.value.amount), "balance amount")
+    if(amountInToken>Number(sourceBalanceInfo.value.amount)){
+      console.log("updating rebalance amount from ", amountInToken, Number(sourceBalanceInfo.value.amount))
+      amountInToken = Number(sourceBalanceInfo.value.amount)
+    }
 
     let result = null;
 
     const quote = await getQuote(tokenPublicKey, SOL, amountInToken);
-
+    
     // Convert the Quote into a Swap instruction
     const programWSOLAccount = findProgramWSOLAccount(program.programId);
     result = await getSwapIx(adminPublicKey, programWSOLAccount, quote);
@@ -1067,12 +1088,13 @@ export async function rebalanceIndex(
   mintKeypair: Keypair,
   tokenPublicKey: PublicKey,
   buy: boolean,
-  amount: number
+  amount: number,
+  pda: string,
 ) {
   try{
 
     const mintPublicKey = mintKeypair.publicKey;
-
+    const connection = new Connection(RPC_URL, "confirmed")
     const SOL = new PublicKey("So11111111111111111111111111111111111111112");
 
     let result = null;
@@ -1084,7 +1106,7 @@ export async function rebalanceIndex(
       if(buy) {
         // Find the best Quote from the Jupiter API
         quote = await getQuote(SOL, tokenPublicKey, amount);
-        console.log(quote, "quote")
+        // console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
         tokenAccount = getAssociatedTokenAddressSync(
           tokenPublicKey,
@@ -1094,9 +1116,27 @@ export async function rebalanceIndex(
         );
         result = await getSwapIx(adminPublicKey, tokenAccount, quote);
       } else {
+
+        const tknPda = await getTokenProgramId(
+          connection,
+          tokenPublicKey
+        )
+        console.log(tokenPublicKey, pda,"pda")
+        const sourceATA = await getAssociatedTokenAddress(
+          tokenPublicKey,
+          new PublicKey(pda),
+          true,
+          tknPda
+        )
+        const sourceBalanceInfo = await connection.getTokenAccountBalance(sourceATA)
+        console.log(Number(sourceBalanceInfo.value.amount), "balance amount")
+        if(amount>Number(sourceBalanceInfo.value.amount)){
+          console.log("updating rebalance amount from ", amount, Number(sourceBalanceInfo.value.amount))
+          amount = Number(sourceBalanceInfo.value.amount)
+        }
         // Find the best Quote from the Jupiter API
         quote = await getQuote(tokenPublicKey, SOL, amount);
-        console.log(quote, "quote")
+        // console.log(quote, "quote")
         // Convert the Quote into a Swap instruction
         // tokenAccount = getAssociatedTokenAddressSync(
         //   SOL,
@@ -1111,7 +1151,7 @@ export async function rebalanceIndex(
       console.log(programWSOLAccount, "programWSOLAccount")
      
       if ("error" in result) {
-        console.log({ result });
+        // console.log({ result });
         return null;
       }
     

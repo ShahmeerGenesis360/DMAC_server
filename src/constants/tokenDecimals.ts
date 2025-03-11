@@ -9,5 +9,7 @@ export const decimals: Record<string, number>  = {
     Griffain: 6,
     AIXBT: 8,
     SWARMS: 6,
+    ELIZA: 6,
+    ARC: 6,
 }
   
