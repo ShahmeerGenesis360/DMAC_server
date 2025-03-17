@@ -20,9 +20,9 @@ const transactionController = () => {
       }
 
       const dateRange: Record<DateRangeKey, number> = {
-        daily: 6,
-        weekly: 6 * 7,
-        monthly: 31 * 7,
+        daily: 1,
+        weekly:  7,
+        monthly: 30,
       };
 
       // Get the date range based on type
