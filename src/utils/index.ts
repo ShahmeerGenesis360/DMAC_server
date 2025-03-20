@@ -334,11 +334,15 @@ export const calculatePercentageChange = (
 
 export const getGroupByAndStartDate = (interval: string) => {
   let startDate = new Date();
+
+  // Reset time to 12:00 AM
+  startDate.setHours(0, 0, 0, 0);
+
   let groupBy = null;
 
   switch (interval) {
     case "1D":
-      startDate.setHours(startDate.getHours() - 24);
+      startDate.setDate(startDate.getDate() - 1);
       groupBy = {
         year: { $year: "$createdAt" },
         month: { $month: "$createdAt" },
@@ -391,7 +395,7 @@ export const getGroupByAndStartDate = (interval: string) => {
       };
       break;
     case "All":
-      startDate = new Date(0);
+      startDate = new Date(0); // Unix epoch start
       groupBy = {
         year: { $year: "$createdAt" },
         month: { $month: "$createdAt" },
@@ -401,5 +405,7 @@ export const getGroupByAndStartDate = (interval: string) => {
     default:
       throw new Error("Invalid interval");
   }
+
   return { startDate, groupBy };
 };
+
